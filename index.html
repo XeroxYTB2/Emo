@@ -93,8 +93,9 @@ canvas{display:none}
 </style>
 </head>
 <body>
-<video id="cam" autoplay playsinline muted></video>
-<canvas id="mc"></canvas>
+<video id="cam" autoplay playsinline muted style="display:none"></video>
+<canvas id="mc" style="display:none"></canvas>
+<canvas id="preview" style="display:none"></canvas>
 <div class="wrap">
   <div class="title">◈ ÉMO · v6 ◈</div>
 
@@ -121,9 +122,14 @@ canvas{display:none}
     <div class="lbl">Toi</div>
     <div id="ut"></div>
   </div>
+  <div id="camPreviewBox" style="display:none;width:100%;border-radius:12px;overflow:hidden;border:1px solid rgba(126,184,247,0.3)">
+    <img id="camPreview" style="width:100%;display:block;border-radius:12px">
+  </div>
 
   <div class="btns">
     <button class="btn" id="mb" onclick="toggleMic()">🎤 Parler</button>
+    <button class="btn" id="alwaysBtn" onclick="toggleAlwaysListen()">👂 Veille</button>
+    <button class="btn" id="camBtn" onclick="captureAndAsk()" style="display:none">📸 Montrer</button>
     <button class="btn" id="tb" onclick="toggleTheme()">🌙</button>
     <button class="btn" onclick="document.getElementById('hist').classList.toggle('on')">📜</button>
   </div>
@@ -231,6 +237,8 @@ function flash(msg,color){
 var busy=false;   // IMPORTANT : reset TOUJOURS dans finally
 var conv=[];
 var mic=null, micing=false;
+var currentPhoto=null;   // base64 de la dernière photo prise
+var alwaysListening=false; // mode écoute permanente
 
 // ══════════════════════
 // DOM
@@ -307,7 +315,7 @@ function say(text){
 
     window.speechSynthesis.cancel();
     var u = new SpeechSynthesisUtterance(text);
-    u.lang='fr-FR'; u.rate=0.85; u.pitch=1.6; u.volume=1;
+    u.lang='fr-FR'; u.rate=0.95; u.pitch=1.2; u.volume=1;
     var vs = window.speechSynthesis.getVoices();
     for(var i=0;i<vs.length;i++){
       if(vs[i].lang==='fr-FR'||vs[i].lang.startsWith('fr')){u.voice=vs[i];break;}
@@ -345,7 +353,7 @@ function localR(t){
 // ══════════════════════
 // API
 // ══════════════════════
-var SYS='Tu es Émo, un assistant IA sarcastique inspiré de BMO de Adventure Time. Tu réponds TOUJOURS en français. Tes réponses font 1-3 phrases max. Tu es utile mais légèrement impertinent.';
+var SYS='Tu es Émo, un assistant IA sarcastique et attachant, inspiré de BMO de Adventure Time. Tu parles TOUJOURS en français, tu tutoies toujours ton interlocuteur, tu l\'appelles par "toi" ou "tu". Tes réponses font 1-3 phrases max. Tu es utile, curieux, légèrement impertinent mais toujours bienveillant. Quand on te montre une image, tu la décris avec précision et tu proposes ton aide.';
 
 function callAPI(msg){
   return new Promise(function(resolve){
@@ -362,12 +370,17 @@ function callAPI(msg){
         if(i>=ORDER.length){ resolve(null); return; }
         var prov=ORDER[i];
         setStatus('Appel '+prov+'...',true);
-        var tout=new Promise(function(_,rej){setTimeout(function(){rej(new Error('timeout'));},15000);});
+        var payload={provider:prov, messages:conv.slice(-8).concat([{role:'user',content:msg}])};
+        // Ajoute image si dispo et si le provider le supporte
+        if(currentPhoto && (prov==='gemini'||prov==='anthropic')){
+          payload.image = currentPhoto;
+        }
+        var tout=new Promise(function(_,rej){setTimeout(function(){rej(new Error('timeout'));},20000);});
         Promise.race([
           fetch(proxy+'/api/chat',{
             method:'POST',
             headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({provider:prov, messages:conv.slice(-8).concat([{role:'user',content:msg}])})
+            body:JSON.stringify(payload)
           }),
           tout
         ])
@@ -405,6 +418,21 @@ function callAPI(msg){
 }
 
 // ══════════════════════
+// CAPTURE + ASK
+// ══════════════════════
+function captureAndAsk(){
+  if(!camActive){ process('La caméra n\'est pas disponible sur cet appareil.'); return; }
+  currentPhoto = photoBase64();
+  // Affiche preview
+  var src = capturePhoto();
+  if(src){
+    document.getElementById('camPreviewBox').style.display='block';
+    document.getElementById('camPreview').src = src;
+  }
+  process("Regarde ce qu'il y a devant moi et décris-le.");
+}
+
+// ══════════════════════
 // PROCESS — busy reset garanti
 // ══════════════════════
 function process(text){
@@ -418,6 +446,11 @@ function process(text){
   face('lst');
   setStatus('Réflexion...',true);
 
+  // Auto-capture si le message parle de regarder/voir
+  if(camActive && needsCamera(text) && !currentPhoto){
+    currentPhoto = photoBase64();
+  }
+
   var hasKey=!!(getProxy()||getDirectKey());
 
   var p = hasKey ? callAPI(text) : Promise.resolve(null);
@@ -428,6 +461,8 @@ function process(text){
     conv.push({role:'assistant',content:response});
     if(conv.length>20) conv=conv.slice(-20);
     addHist('emo',response);
+    currentPhoto = null; // reset photo après utilisation
+    document.getElementById('camPreviewBox').style.display='none';
     return say(response);
   })
   .catch(function(e){
@@ -435,6 +470,8 @@ function process(text){
   })
   .then(function(){
     busy=false; // ← TOUJOURS remis à false, même en cas d'erreur
+    // Reprend l'écoute si mode permanent
+    if(alwaysListening && !micing) startMic();
   });
 }
 
@@ -451,8 +488,25 @@ function send(){
 // MIC
 // ══════════════════════
 var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+var WAKE_WORD = 'émo';
+
+function toggleAlwaysListen(){
+  if(!SR){process('Micro non supporté.');return;}
+  alwaysListening = !alwaysListening;
+  var btn = document.getElementById('alwaysBtn');
+  if(alwaysListening){
+    btn.classList.add('on');
+    btn.textContent='👂 Actif';
+    if(!micing) startMic();
+  } else {
+    btn.classList.remove('on');
+    btn.textContent='👂 Veille';
+    stopMic();
+  }
+}
+
 function toggleMic(){
-  if(!SR){process('Micro non supporté, utilise le texte.');return;}
+  if(!SR){process("Micro non supporté, utilise le texte.");return;}
   micing?stopMic():startMic();
 }
 function startMic(){
@@ -464,7 +518,32 @@ function startMic(){
     document.getElementById('mb').textContent='⏹ Stop';
     face('lst'); setStatus('Écoute...',true);
   };
-  mic.onresult=function(e){var t=e.results[0][0].transcript;stopMic();process(t);};
+  mic.onresult=function(e){
+    var t=e.results[0][0].transcript.trim();
+    var tl=t.toLowerCase();
+    if(alwaysListening){
+      // En mode veille permanente : cherche le mot déclencheur
+      var wakeIdx = tl.indexOf(WAKE_WORD);
+      if(wakeIdx !== -1){
+        // Extrait ce qui suit le wake word
+        var after = t.slice(wakeIdx + WAKE_WORD.length).trim();
+        stopMic();
+        if(after.length > 2){
+          process(after);
+        } else {
+          // Wake word seul → répond et réécoute
+          say('Oui ?').then(function(){ if(alwaysListening) startMic(); });
+        }
+      } else {
+        // Pas de wake word → réécoute silencieusement
+        stopMicSilent();
+        if(alwaysListening) setTimeout(function(){ startMic(); }, 300);
+      }
+    } else {
+      stopMic();
+      process(t);
+    }
+  };
   mic.onerror=function(e){stopMic();if(e.error==='not-allowed')process('Micro refusé. Utilise le texte.');};
   mic.onend=function(){if(micing)stopMic();};
   try{mic.start();}catch(e){}
@@ -473,7 +552,12 @@ function stopMic(){
   micing=false;
   document.getElementById('mb').classList.remove('on');
   document.getElementById('mb').textContent='🎤 Parler';
-  if(!busy){face(null);setStatus('En veille');}
+  if(!busy&&!alwaysListening){face(null);setStatus('En veille');}
+  if(alwaysListening) setStatus('En veille — dis Émo...',false);
+  if(mic){try{mic.stop();}catch(e){}}
+}
+function stopMicSilent(){
+  micing=false;
   if(mic){try{mic.stop();}catch(e){}}
 }
 
@@ -508,26 +592,56 @@ fw.addEventListener('click',function(){
 });
 
 // ══════════════════════
-// CAMERA
+// CAMERA — vision + capture
 // ══════════════════════
-(function(){
-  if(!navigator.mediaDevices)return;
-  navigator.mediaDevices.getUserMedia({video:{width:160,height:120}}).then(function(s){
-    var v=document.getElementById('cam'),c=document.getElementById('mc');
-    c.width=160;c.height=120;var ctx=c.getContext('2d');
-    v.srcObject=s;v.play();
-    var last=null,cd=0;
-    setInterval(function(){
-      if(busy||micing)return;
-      ctx.drawImage(v,0,0,160,120);
-      var f=ctx.getImageData(0,0,160,120);
-      if(last){var diff=0;for(var i=0;i<f.data.length;i+=4)diff+=Math.abs(f.data[i]-last.data[i]);
-        if(diff/(160*120)>15&&cd<=0){cd=80;process(['Je t\'ai vu.','Mouvement détecté.'][Math.floor(Math.random()*2)]);}}
-      last=f;if(cd>0)cd--;
-    },700);
-  }).catch(function(){});
-})();
+var camStream = null;
+var camActive = false;
 
+function initCamera(){
+  if(!navigator.mediaDevices) return;
+  navigator.mediaDevices.getUserMedia({video:{width:640,height:480,facingMode:'environment'}})
+    .then(function(s){
+      camStream = s;
+      camActive = true;
+      var v = document.getElementById('cam');
+      var mc = document.getElementById('mc');
+      mc.width=640; mc.height=480;
+      v.srcObject = s;
+      v.play();
+      document.getElementById('camBtn').style.display='inline-block';
+    })
+    .catch(function(e){ console.log('[Émo] Caméra non dispo:', e.message); });
+}
+
+function capturePhoto(){
+  if(!camActive) return null;
+  var v = document.getElementById('cam');
+  var mc = document.getElementById('mc');
+  var ctx = mc.getContext('2d');
+  ctx.drawImage(v, 0, 0, mc.width, mc.height);
+  return mc.toDataURL('image/jpeg', 0.7);
+}
+
+function photoBase64(){
+  var d = capturePhoto();
+  return d ? d.split(',')[1] : null;
+}
+
+function needsCamera(text){
+  var t = text.toLowerCase();
+  return /regarde|vois|voir|montre|photo|image|devant|là|ici|exercice|vaisselle|résous|lis|analyse|qu.est.ce que c.est|c.est quoi/.test(t);
+}
+
+function captureAndAsk(){
+  if(!camActive){ process("La caméra n'est pas disponible."); return; }
+  currentPhoto = photoBase64();
+  var src = capturePhoto();
+  if(src){
+    document.getElementById('camPreviewBox').style.display='block';
+    document.getElementById('camPreview').src = src;
+  }
+  process("Regarde ce qu'il y a devant moi et décris-le.");
+}
 // ══════════════════════
 // INIT
 // ══════════════════════
@@ -537,9 +651,10 @@ fw.addEventListener('click',function(){
     document.getElementById('tb').textContent='☀️';
   }
   refreshDots();
+  initCamera();
   var hasKey=!!(getProxy()||getDirectKey());
   setTimeout(function(){
-    process(hasKey?'Clé API chargée. Je suis prêt.':'Bonjour. Configure une clé API ou pose une question simple.');
+    process(hasKey?"Clé API chargée. Je suis prêt à t'aider.":'Bonjour ! Configure une clé API ou pose-moi une question simple.');
   },500);
 })();
 </script>
