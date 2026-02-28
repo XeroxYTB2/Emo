@@ -38,7 +38,6 @@ button {
 const part1 = "sk-proj-yIL0EawfBzWYZDcsEzu1VwbKTSXuEUI5TQdkk";
 const part2 = "rWdw1cWDpnETEg8IAWNyyJThm1kB1aJfSnGr9T3BlbkFJ";
 const part3 = "ymo6MEHFFALL-lRCbTsyN9_1-oaS5pgX6l4zPgP9_6DuEHeuG8APuiFE7vaDwcnP-Zl7Pm2qYA";
-
 const API_KEY = part1 + part2 + part3;
 
 // ----- Variables -----
@@ -49,12 +48,10 @@ let cameraStream;
 // ----- Dessin BMO -----
 const canvas = document.getElementById('bmo');
 const ctx = canvas.getContext('2d');
-
 function drawBMO(){
     ctx.clearRect(0,0,200,200);
     ctx.fillStyle="#88c0ff";
     ctx.fillRect(0,0,200,200); // corps
-
     ctx.fillStyle="black";
     ctx.fillRect(50,50,20,20); // oeil gauche
     ctx.fillRect(130,50,20,20); // oeil droit
@@ -70,11 +67,10 @@ function speak(text){
     speechSynthesis.speak(utter);
 }
 
-// ----- Mode décision / API -----
+// ----- Mode décision -----
 async function decideAction(input){
     input = input.toLowerCase();
     let response;
-
     if(API_KEY && window.fetch){
         try{
             const r = await fetch("https://api.openai.com/v1/completions", {
@@ -96,24 +92,25 @@ async function decideAction(input){
             response = "Hmm… quelque chose a mal tourné, mais je sais mieux.";
         }
     } else {
-        // comportement local
         if(input.includes("look") || input.includes("voir")) response = "Je regarde autour… fascinant !";
         else if(input.includes("fais") || input.includes("do")) response = "Hmm… presque intéressant… mais je sais mieux.";
         else response = "Hmm… vraiment brillant… presque impressionnant.";
     }
-
     return response;
 }
 
 // ----- Micro + reconnaissance -----
 async function startEmo(){
+    // Micro + caméra
     const stream = await navigator.mediaDevices.getUserMedia({audio:true, video:true});
     cameraStream = stream;
 
+    // On ne connecte pas le micro à un audio ou video pour que tu ne t'entendes pas
     const video = document.createElement('video');
     video.srcObject = stream;
-    video.play();
+    video.play().catch(()=>{}); // juste pour init caméra invisible
 
+    // SpeechRecognition Safari
     recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
     recognition.lang = 'fr-FR';
     recognition.continuous = true;
@@ -132,12 +129,13 @@ async function startEmo(){
             }, 500);
         }
     };
-
     recognition.start();
+
+    // Caméra invisible → détection
     checkCameraMotion();
 }
 
-// ----- Détection caméra simple -----
+// ----- Détection caméra -----
 async function checkCameraMotion(){
     if(!cameraStream) return;
     const videoTrack = cameraStream.getVideoTracks()[0];
