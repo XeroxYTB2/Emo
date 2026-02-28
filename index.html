@@ -1,170 +1,481 @@
 <!DOCTYPE html>
+
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Émo Agent</title>
+<title>Émo</title>
 <style>
-body {
-  margin: 0;
-  padding: 0;
-  background: black;
-  color: white;
-  font-family: sans-serif;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100vh;
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@700&display=swap');
+
+:root {
+–bg:#0a0a0a; –text:#c8e6ff; –accent:#00e5ff;
+–blue:#7eb8f7; –btn:rgba(126,184,247,0.35);
 }
-canvas {
-  background: #88c0ff;
-  border-radius: 20px;
+body.light {
+–bg:#ddeeff; –text:#0a2a4a; –accent:#0066cc; –btn:rgba(0,102,204,0.35);
 }
-button {
-  margin-top: 20px;
-  padding: 10px 20px;
-  font-size: 18px;
-}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(–bg);color:var(–text);font-family:‘Share Tech Mono’,monospace;
+min-height:100vh;display:flex;align-items:center;justify-content:center;
+transition:background .4s,color .4s;}
+.wrap{display:flex;flex-direction:column;align-items:center;gap:14px;
+padding:24px 20px;width:100%;max-width:400px;}
+.title{font-family:‘Orbitron’,monospace;font-size:12px;letter-spacing:6px;
+color:var(–accent);text-transform:uppercase;}
+
+/* FACE */
+.fw{width:200px;height:200px;cursor:pointer;
+filter:drop-shadow(0 0 24px rgba(126,184,247,0.5));transition:filter .3s;}
+.fw.speaking{animation:fg .4s ease-in-out infinite alternate;}
+@keyframes fg{from{filter:drop-shadow(0 0 24px rgba(126,184,247,.5))}
+to{filter:drop-shadow(0 0 60px var(–accent))}}
+.fb{width:100%;height:100%;background:var(–blue);border-radius:30px;
+position:relative;overflow:hidden;}
+.fb::before{content:’’;position:absolute;top:-40%;left:-20%;width:50%;height:60%;
+background:rgba(255,255,255,.13);border-radius:50%;transform:rotate(-30deg);}
+.eyes{position:absolute;top:30%;left:0;right:0;display:flex;justify-content:center;gap:38px;}
+.eye{width:36px;height:36px;background:#111;border-radius:6px;position:relative;overflow:hidden;transition:height .1s;}
+.eye::after{content:’’;position:absolute;inset:5px;
+background:radial-gradient(circle,#00e5ff 0%,#006080 70%,transparent 100%);
+border-radius:3px;opacity:0;transition:opacity .3s;}
+.fb.listening .eye::after{opacity:1;animation:eg 1s ease-in-out infinite alternate;}
+@keyframes eg{from{opacity:.5}to{opacity:1}}
+.fb.happy .eye{height:24px;border-radius:6px 6px 16px 16px;}
+.fb.sarcasm .eye:first-child{transform:rotate(-6deg);}
+.fb.sarcasm .eye:last-child{transform:rotate(6deg);}
+@keyframes blink{0%,100%{height:36px}50%{height:3px;border-radius:2px}}
+.eye.blink{animation:blink .15s ease-in-out;}
+.mouth{position:absolute;bottom:24%;left:50%;transform:translateX(-50%);
+width:68px;height:17px;background:#111;border-radius:4px;overflow:hidden;transition:all .2s;}
+.fb.happy .mouth{height:10px;border-radius:0 0 34px 34px;}
+.fb.sarcasm .mouth{width:46px;height:10px;border-radius:4px 4px 4px 12px;transform:translateX(calc(-50% + 7px));}
+.mouth-inner{width:100%;height:100%;display:flex;align-items:flex-end;
+justify-content:space-around;padding:0 3px 2px;gap:2px;}
+.bar{flex:1;background:var(–accent);border-radius:2px 2px 0 0;height:0;}
+.fb.speaking .bar{animation:talk .12s ease-in-out infinite alternate;}
+.fb.speaking .bar:nth-child(1){animation-duration:.13s;animation-delay:0s}
+.fb.speaking .bar:nth-child(2){animation-duration:.10s;animation-delay:.04s}
+.fb.speaking .bar:nth-child(3){animation-duration:.09s;animation-delay:.01s}
+.fb.speaking .bar:nth-child(4){animation-duration:.14s;animation-delay:.06s}
+.fb.speaking .bar:nth-child(5){animation-duration:.11s;animation-delay:.03s}
+@keyframes talk{from{height:2px}to{height:11px}}
+
+.status{font-family:‘Orbitron’,monospace;font-size:10px;letter-spacing:3px;
+color:var(–accent);text-transform:uppercase;min-height:14px;text-align:center;}
+.status.bl{animation:sb 1s step-end infinite;}
+@keyframes sb{0%,100%{opacity:1}50%{opacity:.15}}
+
+.bubble{width:100%;background:rgba(126,184,247,0.07);border:1px solid rgba(126,184,247,0.2);
+border-radius:14px;padding:12px 16px;font-size:13px;line-height:1.6;text-align:center;}
+.bubble.emo{border-color:rgba(0,229,255,.3);background:rgba(0,229,255,.04);}
+.lbl{font-size:9px;letter-spacing:3px;opacity:.4;margin-bottom:4px;
+font-family:‘Orbitron’,monospace;text-transform:uppercase;}
+body.light .bubble{background:rgba(0,102,204,0.06);border-color:rgba(0,102,204,0.2);}
+body.light .bubble.emo{background:rgba(0,102,204,0.08);border-color:rgba(0,102,204,0.35);}
+
+.btns{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;}
+.btn{background:transparent;border:1px solid var(–btn);border-radius:10px;color:var(–text);
+font-family:‘Share Tech Mono’,monospace;font-size:12px;padding:9px 16px;cursor:pointer;
+letter-spacing:2px;text-transform:uppercase;transition:all .2s;}
+.btn:hover,.btn.on{border-color:var(–accent);color:var(–accent);box-shadow:0 0 14px rgba(0,229,255,.25);}
+.btn.on{animation:bp 1.5s ease-in-out infinite;}
+@keyframes bp{0%,100%{box-shadow:0 0 8px rgba(0,229,255,.15)}50%{box-shadow:0 0 22px rgba(0,229,255,.5)}}
+
+.irow{display:flex;gap:8px;width:100%;}
+.irow input{flex:1;background:rgba(126,184,247,0.06);border:1px solid rgba(126,184,247,0.25);
+border-radius:10px;color:var(–text);font-family:‘Share Tech Mono’,monospace;
+font-size:13px;padding:10px 14px;outline:none;transition:border .2s,background .4s;}
+.irow input:focus{border-color:var(–accent);}
+.irow input::placeholder{opacity:.3;font-size:11px;}
+body.light .irow input{background:rgba(255,255,255,0.6);border-color:rgba(0,102,204,0.25);}
+
+/* API BOX — toujours visible */
+.apibox{width:100%;background:rgba(126,184,247,0.04);border:1px solid rgba(126,184,247,0.15);
+border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:10px;}
+body.light .apibox{background:rgba(0,102,204,0.04);border-color:rgba(0,102,204,0.15);}
+.apibox label{font-size:10px;letter-spacing:2px;text-transform:uppercase;opacity:.5;
+font-family:‘Orbitron’,monospace;}
+.apirow{display:flex;gap:8px;}
+.apirow input{flex:1;background:rgba(0,0,0,0.3);border:1px solid rgba(126,184,247,0.3);
+border-radius:8px;color:var(–text);font-family:‘Share Tech Mono’,monospace;
+font-size:12px;padding:9px 12px;outline:none;transition:border .2s;}
+.apirow input:focus{border-color:var(–accent);}
+body.light .apirow input{background:rgba(255,255,255,0.8);border-color:rgba(0,102,204,0.3);}
+.ast{font-size:10px;letter-spacing:1px;text-align:center;min-height:13px;}
+.hint{font-size:10px;opacity:.4;line-height:1.5;text-align:center;}
+
+.hist{display:none;flex-direction:column;gap:5px;width:100%;max-height:100px;overflow-y:auto;}
+.hist.on{display:flex;}
+.hi{font-size:11px;line-height:1.4;opacity:.5;border-left:2px solid var(–btn);padding-left:7px;}
+.hi.emo{border-left-color:var(–accent);opacity:.7;}
+#cam{position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;}
+canvas{display:none;}
 </style>
+
 </head>
 <body>
+<video id="cam" autoplay playsinline muted></video>
+<canvas id="mc"></canvas>
+<div class="wrap">
+  <div class="title">◈ ÉMO · v5 ◈</div>
 
-<canvas id="bmo" width="200" height="200"></canvas>
-<button id="startBtn">Démarrer Émo</button>
+  <div class="fw" id="fw">
+    <div class="fb" id="fb">
+      <div class="eyes">
+        <div class="eye" id="eL"></div>
+        <div class="eye" id="eR"></div>
+      </div>
+      <div class="mouth">
+        <div class="mouth-inner">
+          <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+          <div class="bar"></div><div class="bar"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="status" id="st">[ EN VEILLE ]</div>
+
+  <div class="bubble emo">
+    <div class="lbl">Émo dit</div>
+    <div id="rt">Écris ta question ou appuie sur 🎤</div>
+  </div>
+
+  <div class="bubble" id="ub" style="display:none">
+    <div class="lbl">Toi</div>
+    <div id="ut"></div>
+  </div>
+
+  <div class="btns">
+    <button class="btn" id="mb" onclick="toggleMic()">🎤 Parler</button>
+    <button class="btn" id="tb" onclick="toggleTheme()">🌙</button>
+    <button class="btn" onclick="document.getElementById('hist').classList.toggle('on')">📜</button>
+  </div>
+
+  <div class="irow">
+    <input type="text" id="ti" placeholder="Écris ta question…" onkeydown="if(event.key==='Enter')send()">
+    <button class="btn" onclick="send()">→</button>
+  </div>
+
+  <div class="hist" id="hist"></div>
+
+  <!-- CLÉ API — toujours visible -->
+
+  <div class="apibox">
+    <label>Clé API</label>
+    <div class="hint">
+      Entre ta clé <b>Anthropic</b> (commence par <b>sk-ant-</b>)<br>
+      ou ta clé <b>OpenAI</b> (commence par <b>sk-</b>)
+    </div>
+    <div class="apirow">
+      <input type="password" id="kin" placeholder="sk-ant-... ou sk-proj-...">
+      <button class="btn" onclick="saveKey()">💾</button>
+      <button class="btn" onclick="delKey()">🗑</button>
+    </div>
+    <div class="ast" id="ast"></div>
+  </div>
+</div>
 
 <script>
-// ----- Découpage clé OpenAI -----
-const part1 = "sk-proj-yIL0EawfBzWYZDcsEzu1VwbKTSXuEUI5TQdkk";
-const part2 = "rWdw1cWDpnETEg8IAWNyyJThm1kB1aJfSnGr9T3BlbkFJ";
-const part3 = "ymo6MEHFFALL-lRCbTsyN9_1-oaS5pgX6l4zPgP9_6DuEHeuG8APuiFE7vaDwcnP-Zl7Pm2qYA";
-const API_KEY = part1 + part2 + part3;
+var SK = 'emo_key_v5';
+var SP = 'emo_provider'; // 'anthropic' ou 'openai'
 
-// ----- Variables -----
-const BMO_KEYWORD = "emo";
-let recognition;
-let cameraStream;
+function getKey(){ return localStorage.getItem(SK)||''; }
+function getProvider(){ return localStorage.getItem(SP)||''; }
+function saveKeyFn(k,p){ localStorage.setItem(SK,k); localStorage.setItem(SP,p); }
+function delKeyFn(){ localStorage.removeItem(SK); localStorage.removeItem(SP); }
 
-// ----- Dessin BMO -----
-const canvas = document.getElementById('bmo');
-const ctx = canvas.getContext('2d');
-function drawBMO(){
-    ctx.clearRect(0,0,200,200);
-    ctx.fillStyle="#88c0ff";
-    ctx.fillRect(0,0,200,200); // corps
-    ctx.fillStyle="black";
-    ctx.fillRect(50,50,20,20); // oeil gauche
-    ctx.fillRect(130,50,20,20); // oeil droit
-    ctx.fillRect(70,130,60,20); // bouche
-}
-drawBMO();
+var busy=false, conv=[], rec=null, micing=false;
+var fb=document.getElementById('fb');
+var fw=document.getElementById('fw');
+var st=document.getElementById('st');
+var rt=document.getElementById('rt');
+var ub=document.getElementById('ub');
+var ut=document.getElementById('ut');
+var ast=document.getElementById('ast');
 
-// ----- Voix BMO -----
-function speak(text){
-    const utter = new SpeechSynthesisUtterance(text);
-    utter.pitch = 1.5;
-    utter.rate = 0.6;
-    speechSynthesis.speak(utter);
+/* ── KEY ── */
+function showStatus(){
+  var k=getKey(), p=getProvider();
+  if(!k){ ast.style.color='#ff5555'; ast.textContent='⚠ Aucune clé — mode local uniquement'; return; }
+  ast.style.color='#00ff88';
+  ast.textContent='✓ Clé '+p+' : …'+k.slice(-6);
 }
 
-// ----- Mode décision -----
-async function decideAction(input){
-    input = input.toLowerCase();
-    let response;
-    if(API_KEY && window.fetch){
-        try{
-            const r = await fetch("https://api.openai.com/v1/completions", {
-                method:"POST",
-                headers:{
-                    "Content-Type":"application/json",
-                    "Authorization": `Bearer ${API_KEY}`
-                },
-                body: JSON.stringify({
-                    model:"text-davinci-003",
-                    prompt: `Tu es Émo, un assistant sarcastique et hypocrite. Répond de manière concise et moqueuse à l'utilisateur : "${input}"`,
-                    max_tokens: 50
-                })
-            });
-            const data = await r.json();
-            response = data.choices[0].text.trim();
-        }catch(e){
-            console.error(e);
-            response = "Hmm… quelque chose a mal tourné, mais je sais mieux.";
-        }
-    } else {
-        if(input.includes("look") || input.includes("voir")) response = "Je regarde autour… fascinant !";
-        else if(input.includes("fais") || input.includes("do")) response = "Hmm… presque intéressant… mais je sais mieux.";
-        else response = "Hmm… vraiment brillant… presque impressionnant.";
+function saveKey(){
+  var v=document.getElementById('kin').value.trim();
+  if(!v){ ast.style.color='#ff5555'; ast.textContent='Entre une clé.'; return; }
+  var p='';
+  if(v.startsWith('sk-ant-')){ p='anthropic'; }
+  else if(v.startsWith('sk-')){ p='openai'; }
+  else { ast.style.color='#ff5555'; ast.textContent='Clé invalide (doit commencer par sk-ant- ou sk-)'; return; }
+  saveKeyFn(v,p);
+  document.getElementById('kin').value='';
+  showStatus();
+  say('Clé '+p+' sauvegardée. Je suis prêt.', null, null);
+}
+
+function delKey(){
+  delKeyFn();
+  document.getElementById('kin').value='';
+  showStatus();
+  say('Clé supprimée.', null, null);
+}
+
+/* ── FACE ── */
+function face(m){
+  fb.classList.remove('listening','speaking','happy','sarcasm');
+  fw.classList.remove('speaking');
+  if(m){ fb.classList.add(m); if(m==='speaking') fw.classList.add('speaking'); }
+}
+function setStatus(t,bl){
+  st.textContent='[ '+t.toUpperCase()+' ]';
+  if(bl) st.classList.add('bl'); else st.classList.remove('bl');
+}
+(function bloop(){
+  setTimeout(function(){
+    if(!busy){
+      ['eL','eR'].forEach(function(id){
+        var e=document.getElementById(id);
+        e.classList.add('blink');
+        setTimeout(function(){e.classList.remove('blink');},200);
+      });
     }
-    return response;
+    bloop();
+  },3000+Math.random()*5000);
+})();
+
+/* ── SPEECH ── */
+if(window.speechSynthesis){
+  window.speechSynthesis.getVoices();
+  window.speechSynthesis.onvoiceschanged=function(){window.speechSynthesis.getVoices();};
+}
+function say(text, mood, cb){
+  rt.textContent=text;
+  busy=true; face('speaking'); setStatus('Parle',true);
+  if(!window.speechSynthesis){ busy=false; face(null); setStatus('En veille'); if(cb)cb(); return; }
+  window.speechSynthesis.cancel();
+  var u=new SpeechSynthesisUtterance(text);
+  u.lang='fr-FR'; u.rate=0.85; u.pitch=1.6; u.volume=1;
+  var vs=window.speechSynthesis.getVoices();
+  for(var i=0;i<vs.length;i++){ if(vs[i].lang==='fr-FR'){u.voice=vs[i];break;} }
+  u.onend=u.onerror=function(){ busy=false; face(null); setStatus('En veille'); if(cb)cb(); };
+  window.speechSynthesis.speak(u);
 }
 
-// ----- Micro + reconnaissance -----
-async function startEmo(){
-    // Micro + caméra
-    const stream = await navigator.mediaDevices.getUserMedia({audio:true, video:true});
-    cameraStream = stream;
+/* ── LOCAL RESPONSES ── */
+var LR={
+  greet:["Salut. Une question ?","Bonjour. Je t'écoute.","Coucou."],
+  merci:["De rien.","Avec plaisir.","C'est mon rôle."],
+  sava:["Je suis une IA, donc techniquement oui.","Toujours là. Toi ?"],
+  heure:function(){ var n=new Date(); return 'Il est '+n.getHours()+'h'+String(n.getMinutes()).padStart(2,'0')+'.'; },
+  date:function(){ var n=new Date(),d=['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'],m=['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre']; return d[n.getDay()]+' '+n.getDate()+' '+m[n.getMonth()]+' '+n.getFullYear()+'.'; },
+  blague:["Pourquoi les plongeurs plongent en arrière ? Parce que sinon ils tomberaient dans le bateau."],
+  noclue:["Je ne sais pas répondre à ça sans connexion IA. Entre une clé API pour de meilleures réponses.","Hmm. Entre une clé Anthropic ou OpenAI pour que je puisse vraiment t'aider."],
+};
+function pick(a){ return typeof a==='function'?a():a[Math.floor(Math.random()*a.length)]; }
+function localResp(t){
+  t=t.toLowerCase().trim();
+  if(/^(bonjour|salut|coucou|hey|hello|bonsoir)[!.?\s]*$/.test(t)) return pick(LR.greet);
+  if(/^(merci|thanks)[!.?\s]*$/.test(t)) return pick(LR.merci);
+  if(/^(ça va|tu vas|comment tu vas)[?!.\s]*$/.test(t)) return pick(LR.sava);
+  if(/quelle heure|heure est.il/.test(t)) return LR.heure();
+  if(/quelle date|quel jour|on est quel/.test(t)) return LR.date();
+  if(/blague/.test(t)) return pick(LR.blague);
+  return null;
+}
 
-    // On ne connecte pas le micro à un audio ou video pour que tu ne t'entendes pas
-    const video = document.createElement('video');
-    video.srcObject = stream;
-    video.play().catch(()=>{}); // juste pour init caméra invisible
+/* ── API CALL ── */
+function callAPI(msg, cb){
+  var key=getKey(), prov=getProvider();
+  if(!key){ cb(null); return; }
 
-    // SpeechRecognition Safari
-    recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
-    recognition.lang = 'fr-FR';
-    recognition.continuous = true;
-    recognition.interimResults = false;
+  var url, headers, body;
 
-    recognition.onresult = async (event)=>{
-        const transcript = event.results[event.results.length-1][0].transcript.toLowerCase();
-        console.log("Input:", transcript);
+  var fetchUrl, fetchOpts;
 
-        if(transcript.includes(BMO_KEYWORD)){
-            speak("Oui ? Que veux-tu encore, esprit brillant ?");
-            setTimeout(async ()=>{
-                const response = await decideAction(transcript);
-                console.log("Émo:", response);
-                speak(response);
-            }, 500);
-        }
+  if(prov==='anthropic'){
+    fetchUrl='https://api.anthropic.com/v1/messages';
+    fetchOpts={
+      method:'POST',
+      mode:'cors',
+      headers:{
+        'Content-Type':'application/json',
+        'x-api-key':key,
+        'anthropic-version':'2023-06-01',
+        'anthropic-dangerous-direct-browser-access':'true'
+      },
+      body:JSON.stringify({
+        model:'claude-haiku-4-5-20251001',
+        max_tokens:200,
+        system:'Tu es Émo, un assistant IA sarcastique inspiré de BMO de Adventure Time. Tu réponds TOUJOURS en français. Tes réponses font 1-3 phrases max. Tu es utile mais légèrement impertinent.',
+        messages:conv.slice(-8).concat([{role:'user',content:msg}])
+      })
     };
-    recognition.start();
+  } else {
+    fetchUrl='https://api.openai.com/v1/chat/completions';
+    fetchOpts={
+      method:'POST',
+      mode:'cors',
+      headers:{
+        'Content-Type':'application/json',
+        'Authorization':'Bearer '+key
+      },
+      body:JSON.stringify({
+        model:'gpt-4o-mini',
+        max_tokens:160,
+        temperature:0.85,
+        messages:[
+          {role:'system',content:'Tu es Émo, un assistant IA sarcastique inspiré de BMO. Tu réponds TOUJOURS en français en 1-3 phrases.'}
+        ].concat(conv.slice(-8)).concat([{role:'user',content:msg}])
+      })
+    };
+  }
 
-    // Caméra invisible → détection
-    checkCameraMotion();
+  // Timeout manuel via Promise.race
+  var timeoutP = new Promise(function(_, rej){
+    setTimeout(function(){ rej(new Error('Timeout 20s')); }, 20000);
+  });
+
+  Promise.race([fetch(fetchUrl, fetchOpts), timeoutP])
+    .then(function(resp){
+      return resp.json().then(function(d){
+        if(!resp.ok){
+          var em=(d.error&&d.error.message)||('Erreur '+resp.status);
+          cb('Erreur API : '+em); return;
+        }
+        var ans='';
+        if(prov==='anthropic'){
+          ans=d.content[0].text.trim();
+        } else {
+          ans=d.choices[0].message.content.trim();
+        }
+        cb(ans);
+      });
+    })
+    .catch(function(e){
+      cb('Erreur : '+e.message);
+    });
 }
 
-// ----- Détection caméra -----
-async function checkCameraMotion(){
-    if(!cameraStream) return;
-    const videoTrack = cameraStream.getVideoTracks()[0];
-    const imageCapture = new ImageCapture(videoTrack);
+/* ── PROCESS ── */
+function process(text){
+  text=text.trim();
+  if(!text||busy) return;
+  ub.style.display='block';
+  ut.textContent=text;
+  addHist('user',text);
+  face('listening');
+  setStatus('Réflexion...',true);
 
-    setInterval(async ()=>{
-        try{
-            const bitmap = await imageCapture.grabFrame();
-            const canvasTmp = document.createElement('canvas');
-            canvasTmp.width = bitmap.width;
-            canvasTmp.height = bitmap.height;
-            const ctxTmp = canvasTmp.getContext('2d');
-            ctxTmp.drawImage(bitmap,0,0);
-            const imgData = ctxTmp.getImageData(0,0,canvasTmp.width,canvasTmp.height).data;
-
-            let sum = 0;
-            for(let i=0;i<imgData.length;i+=4) sum += (imgData[i]+imgData[i+1]+imgData[i+2])/3;
-            const avg = sum / (imgData.length/4);
-
-            if(avg > 100){
-                const response = await decideAction("Quelqu’un est devant la caméra");
-                speak(response);
-            }
-        }catch(e){console.error(e);}
-    }, 3000);
+  if(getKey()){
+    setStatus('Appel IA...',true);
+    callAPI(text,function(resp){
+      var answer=resp||localResp(text)||pick(LR.noclue);
+      conv.push({role:'user',content:text});
+      conv.push({role:'assistant',content:answer});
+      if(conv.length>20) conv=conv.slice(-20);
+      addHist('emo',answer);
+      say(answer,null,null);
+    });
+  } else {
+    var answer=localResp(text)||pick(LR.noclue);
+    conv.push({role:'user',content:text});
+    conv.push({role:'assistant',content:answer});
+    addHist('emo',answer);
+    say(answer,null,null);
+  }
 }
 
-// ----- Bouton -----
-document.getElementById('startBtn').addEventListener('click', startEmo);
+/* ── TEXT ── */
+function send(){
+  var el=document.getElementById('ti'),t=el.value.trim();
+  el.value=''; if(t) process(t);
+}
+
+/* ── MIC ── */
+var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+function toggleMic(){
+  if(!SR){ say('Micro non supporté. Utilise le texte.',null,null); return; }
+  micing?stopMic():startMic();
+}
+function startMic(){
+  if(rec){ try{rec.abort();}catch(e){} }
+  rec=new SR(); rec.lang='fr-FR'; rec.continuous=false; rec.interimResults=false;
+  rec.onstart=function(){ micing=true; document.getElementById('mb').classList.add('on'); document.getElementById('mb').textContent='⏹ Stop'; face('listening'); setStatus('Écoute...',true); };
+  rec.onresult=function(e){ var t=e.results[0][0].transcript; stopMic(); process(t); };
+  rec.onerror=function(e){ stopMic(); if(e.error==='not-allowed') say('Micro refusé.',null,null); };
+  rec.onend=function(){ if(micing) stopMic(); };
+  try{rec.start();}catch(e){}
+}
+function stopMic(){
+  micing=false;
+  document.getElementById('mb').classList.remove('on');
+  document.getElementById('mb').textContent='🎤 Parler';
+  face(null); setStatus('En veille');
+  if(rec){ try{rec.stop();}catch(e){} }
+}
+
+/* ── HISTORY ── */
+function addHist(role,text){
+  var d=document.createElement('div');
+  d.className='hi '+role;
+  d.textContent=(role==='emo'?'◈ Émo : ':'➤ Toi : ')+text;
+  var h=document.getElementById('hist');
+  h.appendChild(d); h.scrollTop=h.scrollHeight;
+}
+
+/* ── THEME ── */
+function toggleTheme(){
+  var l=document.body.classList.toggle('light');
+  localStorage.setItem('emo_theme',l?'light':'dark');
+  document.getElementById('tb').textContent=l?'☀️':'🌙';
+}
+
+/* ── FACE CLICK ── */
+fw.addEventListener('click',function(){
+  if(!busy){
+    var r=["Tu m'as tapé dessus.","Oui je suis là.","Arrête de me toucher."];
+    say(r[Math.floor(Math.random()*r.length)],null,null);
+  }
+});
+
+/* ── CAMERA ── */
+(function(){
+  if(!navigator.mediaDevices) return;
+  navigator.mediaDevices.getUserMedia({video:{width:160,height:120}}).then(function(s){
+    var v=document.getElementById('cam'),c=document.getElementById('mc');
+    c.width=160;c.height=120;var ctx=c.getContext('2d');
+    v.srcObject=s;v.play();
+    var last=null,cd=0;
+    setInterval(function(){
+      if(busy||micing) return;
+      ctx.drawImage(v,0,0,160,120);
+      var f=ctx.getImageData(0,0,160,120);
+      if(last){
+        var diff=0;
+        for(var i=0;i<f.data.length;i+=4) diff+=Math.abs(f.data[i]-last.data[i]);
+        if(diff/(160*120)>15&&cd<=0){ cd=80; say(['Je t\'ai vu.','Mouvement.'][Math.floor(Math.random()*2)],null,null); }
+      }
+      last=f;if(cd>0)cd--;
+    },700);
+  }).catch(function(){});
+})();
+
+/* ── INIT ── */
+(function(){
+  if(localStorage.getItem('emo_theme')==='light'){
+    document.body.classList.add('light');
+    document.getElementById('tb').textContent='☀️';
+  }
+  showStatus();
+  setTimeout(function(){
+    var msg=getKey()?'Clé chargée. Je suis prêt.':'Bonjour. Entre une clé API Anthropic ou OpenAI, ou pose une question simple.';
+    say(msg,null,null);
+  },500);
+})();
 </script>
+
 </body>
 </html>
