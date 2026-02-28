@@ -55,4 +55,13 @@ async function startListening() {
     };
 }
 
-startListening();
+// -------- lancement --------
+window.onload = () => {
+    // Émo dit bonjour dès le lancement
+    mouth.textContent = "o";
+    speak("Bonjour ! Je suis Émo, ton assistant sarcastique.");
+    mouth.textContent = "◡";
+    setTimeout(()=>mouth.textContent="_",1500);
+
+    startListening();
+};
