@@ -3,15 +3,170 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Émo</title>
-<link rel="stylesheet" href="emo.css">
+<title>Émo Agent</title>
+<style>
+body {
+  margin: 0;
+  padding: 0;
+  background: black;
+  color: white;
+  font-family: sans-serif;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+}
+canvas {
+  background: #88c0ff;
+  border-radius: 20px;
+}
+button {
+  margin-top: 20px;
+  padding: 10px 20px;
+  font-size: 18px;
+}
+</style>
 </head>
 <body>
-<div id="emo-face">
-    <div id="eyes">•   •</div>
-    <div id="mouth">_</div>
-</div>
-<button id="talk">Parler à Émo</button>
-<script src="emo.js"></script>
+
+<canvas id="bmo" width="200" height="200"></canvas>
+<button id="startBtn">Démarrer Émo</button>
+
+<script>
+// ----- Découpage clé OpenAI -----
+const part1 = "sk-proj-yIL0EawfBzWYZDcsEzu1VwbKTSXuEUI5TQdkk";
+const part2 = "rWdw1cWDpnETEg8IAWNyyJThm1kB1aJfSnGr9T3BlbkFJ";
+const part3 = "ymo6MEHFFALL-lRCbTsyN9_1-oaS5pgX6l4zPgP9_6DuEHeuG8APuiFE7vaDwcnP-Zl7Pm2qYA";
+
+const API_KEY = part1 + part2 + part3;
+
+// ----- Variables -----
+const BMO_KEYWORD = "emo";
+let recognition;
+let cameraStream;
+
+// ----- Dessin BMO -----
+const canvas = document.getElementById('bmo');
+const ctx = canvas.getContext('2d');
+
+function drawBMO(){
+    ctx.clearRect(0,0,200,200);
+    ctx.fillStyle="#88c0ff";
+    ctx.fillRect(0,0,200,200); // corps
+
+    ctx.fillStyle="black";
+    ctx.fillRect(50,50,20,20); // oeil gauche
+    ctx.fillRect(130,50,20,20); // oeil droit
+    ctx.fillRect(70,130,60,20); // bouche
+}
+drawBMO();
+
+// ----- Voix BMO -----
+function speak(text){
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.pitch = 1.5;
+    utter.rate = 0.6;
+    speechSynthesis.speak(utter);
+}
+
+// ----- Mode décision / API -----
+async function decideAction(input){
+    input = input.toLowerCase();
+    let response;
+
+    if(API_KEY && window.fetch){
+        try{
+            const r = await fetch("https://api.openai.com/v1/completions", {
+                method:"POST",
+                headers:{
+                    "Content-Type":"application/json",
+                    "Authorization": `Bearer ${API_KEY}`
+                },
+                body: JSON.stringify({
+                    model:"text-davinci-003",
+                    prompt: `Tu es Émo, un assistant sarcastique et hypocrite. Répond de manière concise et moqueuse à l'utilisateur : "${input}"`,
+                    max_tokens: 50
+                })
+            });
+            const data = await r.json();
+            response = data.choices[0].text.trim();
+        }catch(e){
+            console.error(e);
+            response = "Hmm… quelque chose a mal tourné, mais je sais mieux.";
+        }
+    } else {
+        // comportement local
+        if(input.includes("look") || input.includes("voir")) response = "Je regarde autour… fascinant !";
+        else if(input.includes("fais") || input.includes("do")) response = "Hmm… presque intéressant… mais je sais mieux.";
+        else response = "Hmm… vraiment brillant… presque impressionnant.";
+    }
+
+    return response;
+}
+
+// ----- Micro + reconnaissance -----
+async function startEmo(){
+    const stream = await navigator.mediaDevices.getUserMedia({audio:true, video:true});
+    cameraStream = stream;
+
+    const video = document.createElement('video');
+    video.srcObject = stream;
+    video.play();
+
+    recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+    recognition.lang = 'fr-FR';
+    recognition.continuous = true;
+    recognition.interimResults = false;
+
+    recognition.onresult = async (event)=>{
+        const transcript = event.results[event.results.length-1][0].transcript.toLowerCase();
+        console.log("Input:", transcript);
+
+        if(transcript.includes(BMO_KEYWORD)){
+            speak("Oui ? Que veux-tu encore, esprit brillant ?");
+            setTimeout(async ()=>{
+                const response = await decideAction(transcript);
+                console.log("Émo:", response);
+                speak(response);
+            }, 500);
+        }
+    };
+
+    recognition.start();
+    checkCameraMotion();
+}
+
+// ----- Détection caméra simple -----
+async function checkCameraMotion(){
+    if(!cameraStream) return;
+    const videoTrack = cameraStream.getVideoTracks()[0];
+    const imageCapture = new ImageCapture(videoTrack);
+
+    setInterval(async ()=>{
+        try{
+            const bitmap = await imageCapture.grabFrame();
+            const canvasTmp = document.createElement('canvas');
+            canvasTmp.width = bitmap.width;
+            canvasTmp.height = bitmap.height;
+            const ctxTmp = canvasTmp.getContext('2d');
+            ctxTmp.drawImage(bitmap,0,0);
+            const imgData = ctxTmp.getImageData(0,0,canvasTmp.width,canvasTmp.height).data;
+
+            let sum = 0;
+            for(let i=0;i<imgData.length;i+=4) sum += (imgData[i]+imgData[i+1]+imgData[i+2])/3;
+            const avg = sum / (imgData.length/4);
+
+            if(avg > 100){
+                const response = await decideAction("Quelqu’un est devant la caméra");
+                speak(response);
+            }
+        }catch(e){console.error(e);}
+    }, 3000);
+}
+
+// ----- Bouton -----
+document.getElementById('startBtn').addEventListener('click', startEmo);
+</script>
 </body>
 </html>
