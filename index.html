@@ -620,9 +620,16 @@ function startMic(){
       if(found !== -1){
         var after = t.slice(found + wlen).replace(/^[^a-zA-ZÀ-ÿ0-9]+/, '').trim();
         if(after.length > 1){
+          // Question déjà dans le même énoncé
           process(after);
         } else {
-          say('Oui ?').then(function(){ schedRestart(300); });
+          // Wake word seul — dit "Oui ?" et relance IMMÉDIATEMENT le micro
+          // pour capturer la question suivante (sans attendre la fin de l'audio)
+          bloop();
+          setSt('Pose ta question...', true);
+          face('hpy');
+          schedRestart(200); // relance le micro très vite
+          say('Oui ?'); // en parallèle (pas de .then)
         }
       } else {
         face(null);
