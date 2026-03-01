@@ -13,7 +13,6 @@ body.light{--bg:#ddeeff;--text:#0a2a4a;--accent:#0066cc;--btn:rgba(0,102,204,0.3
 body{background:var(--bg);color:var(--text);font-family:'Share Tech Mono',monospace;min-height:100vh;display:flex;align-items:center;justify-content:center;transition:background .4s,color .4s}
 .wrap{display:flex;flex-direction:column;align-items:center;gap:13px;padding:20px;width:100%;max-width:400px}
 .title{font-family:'Orbitron',monospace;font-size:12px;letter-spacing:6px;color:var(--accent);text-transform:uppercase}
-/* FACE */
 .fw{width:190px;height:190px;cursor:pointer;filter:drop-shadow(0 0 22px rgba(126,184,247,.45));transition:filter .3s}
 .fw.spk{animation:fg .4s ease-in-out infinite alternate}
 @keyframes fg{from{filter:drop-shadow(0 0 22px rgba(126,184,247,.45))}to{filter:drop-shadow(0 0 55px var(--accent))}}
@@ -41,29 +40,25 @@ body{background:var(--bg);color:var(--text);font-family:'Share Tech Mono',monosp
 .fb.spk .b:nth-child(4){animation-duration:.14s;animation-delay:.06s}
 .fb.spk .b:nth-child(5){animation-duration:.11s;animation-delay:.03s}
 @keyframes tlk{from{height:2px}to{height:10px}}
-/* STATUS */
 .st{font-family:'Orbitron',monospace;font-size:10px;letter-spacing:3px;color:var(--accent);text-transform:uppercase;min-height:14px;text-align:center}
 .st.bl{animation:sb 1s step-end infinite}
 @keyframes sb{0%,100%{opacity:1}50%{opacity:.15}}
-/* BUBBLES */
+.camst{font-size:9px;letter-spacing:2px;opacity:.4;text-align:center;min-height:12px}
 .bub{width:100%;background:rgba(126,184,247,.07);border:1px solid rgba(126,184,247,.2);border-radius:13px;padding:11px 15px;font-size:13px;line-height:1.6;text-align:center}
 .bub.emo{border-color:rgba(0,229,255,.28);background:rgba(0,229,255,.04)}
 .lbl{font-size:9px;letter-spacing:3px;opacity:.4;margin-bottom:3px;font-family:'Orbitron',monospace;text-transform:uppercase}
 body.light .bub{background:rgba(0,102,204,.06);border-color:rgba(0,102,204,.2)}
 body.light .bub.emo{background:rgba(0,102,204,.08);border-color:rgba(0,102,204,.3)}
-/* BUTTONS */
 .btns{display:flex;gap:9px;flex-wrap:wrap;justify-content:center}
 .btn{background:transparent;border:1px solid var(--btn);border-radius:9px;color:var(--text);font-family:'Share Tech Mono',monospace;font-size:11px;padding:8px 14px;cursor:pointer;letter-spacing:2px;text-transform:uppercase;transition:all .2s}
 .btn:hover,.btn.on{border-color:var(--accent);color:var(--accent);box-shadow:0 0 12px rgba(0,229,255,.2)}
 .btn.on{animation:bp 1.5s ease-in-out infinite}
 @keyframes bp{0%,100%{box-shadow:0 0 6px rgba(0,229,255,.1)}50%{box-shadow:0 0 20px rgba(0,229,255,.45)}}
-/* TEXT INPUT */
 .irow{display:flex;gap:8px;width:100%}
 .irow input{flex:1;background:rgba(126,184,247,.06);border:1px solid rgba(126,184,247,.22);border-radius:9px;color:var(--text);font-family:'Share Tech Mono',monospace;font-size:13px;padding:9px 13px;outline:none;transition:border .2s,background .4s}
 .irow input:focus{border-color:var(--accent)}
 .irow input::placeholder{opacity:.3;font-size:11px}
 body.light .irow input{background:rgba(255,255,255,.6);border-color:rgba(0,102,204,.22)}
-/* API BOX */
 .apibox{width:100%;background:rgba(126,184,247,.04);border:1px solid rgba(126,184,247,.13);border-radius:11px;padding:13px;display:flex;flex-direction:column;gap:11px}
 body.light .apibox{background:rgba(0,102,204,.04);border-color:rgba(0,102,204,.13)}
 .apititle{font-family:'Orbitron',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;opacity:.5}
@@ -82,7 +77,6 @@ body.light .prov{border-bottom-color:rgba(0,102,204,.1)}
 body.light .provrow input{background:rgba(255,255,255,.8);border-color:rgba(0,102,204,.25)}
 .apist{font-size:10px;text-align:center;min-height:13px;letter-spacing:1px}
 .apihint{font-size:10px;opacity:.38;text-align:center;line-height:1.5}
-/* HISTORY */
 .hist{display:none;flex-direction:column;gap:4px;width:100%;max-height:95px;overflow-y:auto}
 .hist.on{display:flex}
 .hi{font-size:11px;line-height:1.4;opacity:.5;border-left:2px solid var(--btn);padding-left:7px}
@@ -96,9 +90,8 @@ canvas{display:none}
 <body>
 <video id="cam" autoplay playsinline muted style="display:none"></video>
 <canvas id="mc" style="display:none"></canvas>
-<canvas id="preview" style="display:none"></canvas>
 <div class="wrap">
-  <div class="title">◈ ÉMO · v6 ◈</div>
+  <div class="title">◈ ÉMO · v7 ◈</div>
 
   <div class="fw" id="fw">
     <div class="fb" id="fb">
@@ -114,7 +107,7 @@ canvas{display:none}
   </div>
 
   <div class="st" id="st">[ EN VEILLE ]</div>
-  <div id="camst" style="font-size:9px;letter-spacing:2px;opacity:0.4;text-align:center;min-height:12px"></div>
+  <div class="camst" id="camst"></div>
 
   <div class="bub emo">
     <div class="lbl">Émo dit</div>
@@ -128,12 +121,8 @@ canvas{display:none}
   <div class="btns">
     <button class="btn" id="mb" onclick="toggleMic()">🎤 Parler</button>
     <button class="btn" id="alwaysBtn" onclick="toggleAlwaysListen()">👂 Veille</button>
-
-```
-<button class="btn" id="tb" onclick="toggleTheme()">🌙</button>
-<button class="btn" onclick="document.getElementById('hist').classList.toggle('on')">📜</button>
-```
-
+    <button class="btn" id="tb" onclick="toggleTheme()">🌙</button>
+    <button class="btn" onclick="document.getElementById('hist').classList.toggle('on')">📜</button>
   </div>
 
   <div class="irow">
@@ -166,10 +155,7 @@ canvas{display:none}
 </div>
 
 <div class="apist" id="apist"></div>
-<div class="apihint">
-  Proxy = Gemini + Groq + Anthropic + OpenAI via Vercel (zéro CORS)<br>
-  Direct = Anthropic uniquement (clé dans le navigateur)
-</div>
+<div class="apihint">Proxy = Gemini+Groq+Anthropic+OpenAI · cascade auto</div>
 ```
 
   </div>
@@ -178,76 +164,54 @@ canvas{display:none}
 <script>
 'use strict';
 
-// ══════════════════════
-// STORAGE
-// ══════════════════════
-function getProxy(){ return localStorage.getItem('emo6_proxy')||''; }
-function setProxy(v){ localStorage.setItem('emo6_proxy',v); }
-function getDirectKey(){ return localStorage.getItem('emo6_anthropic')||''; }
-function setDirectKey(v){ localStorage.setItem('emo6_anthropic',v); }
+// ══ STORAGE ══
+function getProxy(){ return localStorage.getItem('emo7_proxy')||''; }
+function setProxy(v){ localStorage.setItem('emo7_proxy',v); }
+function getDirectKey(){ return localStorage.getItem('emo7_anthropic')||''; }
 
 function saveProxy(){
   var v=document.getElementById('k-proxy').value.trim();
-  if(!v||!v.startsWith('http')){ flash('Entre une URL valide (https://...)'); return; }
-  // Enlève le slash final
+  if(!v||!v.startsWith('http')){ flash('URL invalide'); return; }
   setProxy(v.replace(/\/+$/,''));
   document.getElementById('k-proxy').value='';
-  refreshDots();
-  flash('Proxy sauvegardé ✓','#00ff88');
+  refreshDots(); flash('Proxy sauvegardé ✓','#00ff88');
 }
 function delProxy(){
-  localStorage.removeItem('emo6_proxy');
-  refreshDots();
-  flash('Proxy supprimé');
+  localStorage.removeItem('emo7_proxy');
+  refreshDots(); flash('Proxy supprimé');
 }
 function saveKey(p){
   var v=document.getElementById('k-'+p).value.trim();
   if(!v){ flash('Entre une clé'); return; }
-  localStorage.setItem('emo6_'+p,v);
+  localStorage.setItem('emo7_'+p,v);
   document.getElementById('k-'+p).value='';
-  refreshDots();
-  flash('Clé '+p+' sauvegardée ✓','#00ff88');
+  refreshDots(); flash('Clé '+p+' sauvegardée ✓','#00ff88');
 }
 function delKey(p){
-  localStorage.removeItem('emo6_'+p);
-  refreshDots();
-  flash('Clé supprimée');
+  localStorage.removeItem('emo7_'+p);
+  refreshDots(); flash('Clé supprimée');
 }
 function refreshDots(){
   var proxy=getProxy(), direct=getDirectKey();
   document.getElementById('d-proxy').classList.toggle('on',!!proxy);
   document.getElementById('d-anthropic').classList.toggle('on',!!direct);
   var el=document.getElementById('apist');
-  if(proxy){
-    el.style.color='#00ff88';
-    el.textContent='✓ Proxy actif : '+proxy.replace('https://','');
-  } else if(direct){
-    el.style.color='#00ff88';
-    el.textContent='✓ Anthropic direct : sk-ant-…'+direct.slice(-6);
-  } else {
-    el.style.color='#ff5555';
-    el.textContent='⚠ Aucune config — réponses locales uniquement';
-  }
+  if(proxy){ el.style.color='#00ff88'; el.textContent='✓ Proxy : '+proxy.replace('https://',''); }
+  else if(direct){ el.style.color='#00ff88'; el.textContent='✓ Anthropic direct'; }
+  else { el.style.color='#ff5555'; el.textContent='⚠ Aucune config'; }
 }
 function flash(msg,color){
   var el=document.getElementById('apist');
-  el.style.color=color||'#ffaa00';
-  el.textContent=msg;
+  el.style.color=color||'#ffaa00'; el.textContent=msg;
   setTimeout(refreshDots,2000);
 }
 
-// ══════════════════════
-// STATE — SIMPLE FLAGS
-// ══════════════════════
-var busy=false;   // IMPORTANT : reset TOUJOURS dans finally
-var conv=[];
-var mic=null, micing=false;
-var currentPhoto=null;   // base64 de la dernière photo prise
-var alwaysListening=false; // mode écoute permanente
+// ══ STATE ══
+var busy=false, conv=[], mic=null, micing=false;
+var alwaysListening=false, restartTimer=null;
+var currentPhotos=[];
 
-// ══════════════════════
-// DOM
-// ══════════════════════
+// ══ DOM ══
 var fb=document.getElementById('fb');
 var fw=document.getElementById('fw');
 var st=document.getElementById('st');
@@ -255,9 +219,7 @@ var rt=document.getElementById('rt');
 var ub=document.getElementById('ub');
 var ut=document.getElementById('ut');
 
-// ══════════════════════
-// FACE
-// ══════════════════════
+// ══ FACE ══
 function face(m){
   fb.classList.remove('lst','spk','hpy','sar');
   fw.classList.remove('spk');
@@ -265,11 +227,9 @@ function face(m){
 }
 function setStatus(t,bl){
   st.textContent='[ '+t.toUpperCase()+' ]';
-  bl ? st.classList.add('bl') : st.classList.remove('bl');
+  bl?st.classList.add('bl'):st.classList.remove('bl');
 }
-
-// blink
-(function loop(){
+(function blink(){
   setTimeout(function(){
     if(!busy){
       ['eL','eR'].forEach(function(id){
@@ -278,70 +238,47 @@ function setStatus(t,bl){
         setTimeout(function(){e.classList.remove('blk');},180);
       });
     }
-    loop();
+    blink();
   },3000+Math.random()*5000);
 })();
 
-// ══════════════════════
-// SPEECH
-// ══════════════════════
+// ══ SPEECH ══
 if(window.speechSynthesis){
   window.speechSynthesis.getVoices();
   window.speechSynthesis.onvoiceschanged=function(){window.speechSynthesis.getVoices();};
 }
-
 function say(text){
   return new Promise(function(resolve){
-    rt.textContent = text;
-    face('spk');
-    setStatus('Parle',true);
-
-    // Timeout de secours — quoi qu'il arrive, on résout après max 8s
-    // Ceci évite que busy reste bloqué à true sur Safari iOS
-    var done = false;
-    function finish(){
-      if(done) return;
-      done = true;
-      face(null);
-      setStatus('En veille');
-      resolve();
-    }
-
-    // Timeout basé sur la longueur du texte (≈100ms/mot, min 2s, max 8s)
-    var words = text.split(' ').length;
-    var timeout = Math.min(Math.max(words * 350, 2000), 8000);
-    var timer = setTimeout(finish, timeout);
-
-    if(!window.speechSynthesis){
-      clearTimeout(timer);
-      setTimeout(finish, 800);
-      return;
-    }
-
+    rt.textContent=text;
+    face('spk'); setStatus('Parle',true);
+    var done=false;
+    function finish(){ if(done)return; done=true; face(null); setStatus('En veille'); resolve(); }
+    var words=text.split(' ').length;
+    var timeout=Math.min(Math.max(words*350,2000),9000);
+    var timer=setTimeout(finish,timeout);
+    if(!window.speechSynthesis){ clearTimeout(timer); setTimeout(finish,800); return; }
     window.speechSynthesis.cancel();
-    var u = new SpeechSynthesisUtterance(text);
+    var u=new SpeechSynthesisUtterance(text);
     u.lang='fr-FR'; u.rate=0.85; u.pitch=1.6; u.volume=1;
-    var vs = window.speechSynthesis.getVoices();
+    var vs=window.speechSynthesis.getVoices();
     for(var i=0;i<vs.length;i++){
       if(vs[i].lang==='fr-FR'||vs[i].lang.startsWith('fr')){u.voice=vs[i];break;}
     }
-    u.onend = function(){ clearTimeout(timer); finish(); };
-    u.onerror = function(){ clearTimeout(timer); finish(); };
+    u.onend=function(){clearTimeout(timer);finish();};
+    u.onerror=function(){clearTimeout(timer);finish();};
     window.speechSynthesis.speak(u);
   });
 }
 
-// ══════════════════════
-// LOCAL RESPONSES
-// ══════════════════════
+// ══ LOCAL ══
 var LR={
-  greet:["Salut. Une question ?","Bonjour. Je t'écoute.","Coucou !"],
+  greet:["Salut ! Une question ?","Bonjour, je t'écoute.","Coucou !"],
   merci:["De rien.","Avec plaisir.","C'est normal."],
-  sava:["Je suis une IA donc techniquement oui.","Toujours là. Toi ?"],
+  sava:["Je suis une IA donc techniquement oui.","Toujours là. Et toi ?"],
   heure:function(){var n=new Date();return 'Il est '+n.getHours()+'h'+String(n.getMinutes()).padStart(2,'0')+'.';},
   date:function(){var n=new Date(),d=['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'],m=['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];return d[n.getDay()]+' '+n.getDate()+' '+m[n.getMonth()]+' '+n.getFullYear()+'.';},
   blague:["Pourquoi les plongeurs plongent en arrière ? Parce que sinon ils tomberaient dans le bateau."],
-  noclue:["Configure une clé API pour que je puisse vraiment répondre à ça.","Sans clé API je suis un peu limité là."],
+  noclue:["Configure une clé API pour que je puisse vraiment t'aider.","Sans connexion IA je suis un peu limité là."],
 };
 function pick(a){return typeof a==='function'?a():a[Math.floor(Math.random()*a.length)];}
 function localR(t){
@@ -355,51 +292,60 @@ function localR(t){
   return null;
 }
 
-// ══════════════════════
-// SEARCH (Serper)
-// ══════════════════════
-var SEARCH_KW=/\b(météo|temps|heure|date|actualité|news|qui est|c'est quoi|combien|quand|où|résultat|score|prix|distance|capital|population)\b/i;
+// ══ CAMERA ══
+var camStream=null, camActive=false;
 
-function needsSearch(text){
-  return SEARCH_KW.test(text);
-}
-
-function doSearch(query){
-  var proxy=getProxy();
-  if(!proxy) return Promise.resolve(null);
-  return fetch(proxy+'/api/search',{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({query:query+' France'})
+function initCamera(){
+  if(!navigator.mediaDevices) return;
+  navigator.mediaDevices.getUserMedia({
+    video:{width:{ideal:1280},height:{ideal:720},facingMode:'environment',frameRate:{ideal:30}}
   })
-  .then(function(r){ return r.json(); })
-  .then(function(d){ return d.snippet||d.answer||null; })
-  .catch(function(){ return null; });
+  .then(function(s){
+    camStream=s;
+    var v=document.getElementById('cam');
+    var mc=document.getElementById('mc');
+    v.srcObject=s;
+    v.onloadedmetadata=function(){
+      v.play();
+      mc.width=v.videoWidth||1280;
+      mc.height=v.videoHeight||720;
+      setTimeout(function(){
+        camActive=true;
+        document.getElementById('camst').textContent='● CAM ACTIVE';
+        console.log('[Émo] Caméra prête '+mc.width+'x'+mc.height);
+      },2000);
+    };
+  })
+  .catch(function(e){ console.log('[Émo] Caméra non dispo:',e.message); });
 }
 
-function searchThenCall(text){
-  if(!needsSearch(text)) return callAPI(text);
-  return doSearch(text).then(function(snippet){
-    if(snippet){
-      var augmented=text+' [Résultat de recherche: '+snippet+']';
-      return callAPI(augmented);
-    }
-    return callAPI(text);
-  });
+function snapFrame(){
+  if(!camActive) return null;
+  var v=document.getElementById('cam');
+  var mc=document.getElementById('mc');
+  var ctx=mc.getContext('2d');
+  ctx.drawImage(v,0,0,mc.width,mc.height);
+  return mc.toDataURL('image/jpeg',0.92).split(',')[1];
 }
 
-// ══════════════════════
-// API
-// ══════════════════════
-var SYS="Tu es Émo, un assistant IA sarcastique et attachant, inspiré de BMO de Adventure Time. Tu parles TOUJOURS en français, tu tutoies toujours, et ton interlocuteur habite en France. Tes réponses font 1-3 phrases max. Tu es utile, curieux et légèrement impertinent. CAMÉRA : tu reçois une image de la caméra à chaque message. Si l'image est nette et pertinente pour la question, utilise-la. Si l'image est floue, sombre ou non pertinente, dis-le honnêtement au lieu d'inventer. N'invente JAMAIS ce que tu vois si tu n'es pas sûr. RECHERCHE : si la question porte sur l'heure, la météo, les actualités ou toute info en temps réel, tu peux utiliser la recherche web — les résultats te seront fournis dans le message.";
+function captureMultiplePhotos(n,delayMs,cb){
+  if(!camActive){ cb([]); return; }
+  var frames=[],i=0;
+  function next(){
+    var f=snapFrame(); if(f) frames.push(f);
+    i++; if(i<n) setTimeout(next,delayMs); else cb(frames);
+  }
+  next();
+}
+
+// ══ API ══
+var SYS="Tu es Émo, un assistant IA sarcastique et attachant, inspiré de BMO de Adventure Time. Tu parles TOUJOURS en français et tu tutoies toujours. Tes réponses font 1-3 phrases max. Tu es utile, curieux et légèrement impertinent. L'utilisateur habite en France. Tu as accès à une recherche web via le proxy (météo, actualités, etc.). Tu as aussi accès à une caméra en temps réel : à chaque message tu reçois plusieurs images de ce que la caméra voit. Si les images sont noires ou inexploitables, dis-le honnêtement au lieu d'inventer. Utilise les images naturellement pour répondre aux questions visuelles.";
+
 function callAPI(msg){
   return new Promise(function(resolve){
-    var proxy = getProxy();
-    var direct = getDirectKey();
+    var proxy=getProxy(), direct=getDirectKey();
+    if(!proxy&&!direct){ resolve(null); return; }
 
-    if(!proxy && !direct){ resolve(null); return; }
-
-    // ── Via proxy Vercel ──
     if(proxy){
       var ORDER=['gemini','groq','anthropic','openai'];
       var errors=[];
@@ -408,131 +354,104 @@ function callAPI(msg){
         var prov=ORDER[i];
         setStatus('Appel '+prov+'...',true);
         var payload={provider:prov, messages:conv.slice(-8).concat([{role:'user',content:msg}])};
-        // Ajoute image pour les providers vision
-        if(currentPhoto && currentPhoto.length > 500 && (prov==='gemini'||prov==='anthropic'||prov==='openai')){
-          payload.image = currentPhoto;
+        if(currentPhotos.length&&(prov==='gemini'||prov==='anthropic'||prov==='openai')){
+          payload.images=currentPhotos.slice(0,4);
+          console.log('[Émo] '+payload.images.length+' images → '+prov);
         }
         var tout=new Promise(function(_,rej){setTimeout(function(){rej(new Error('timeout'));},20000);});
-        Promise.race([
-          fetch(proxy+'/api/chat',{
-            method:'POST',
-            headers:{'Content-Type':'application/json'},
-            body:JSON.stringify(payload)
-          }),
-          tout
-        ])
-        .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,d:d}; }); })
-        .then(function(r){
-          if(r.d.error){ errors.push(prov+': '+r.d.error); tryNext(i+1); return; }
-          resolve(r.d.answer||null);
-        })
-        .catch(function(e){ errors.push(prov+': '+e.message); tryNext(i+1); });
+        Promise.race([fetch(proxy+'/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}),tout])
+          .then(function(r){return r.json().then(function(d){return{ok:r.ok,d:d};});})
+          .then(function(r){
+            if(r.d.error){ errors.push(prov+': '+r.d.error); tryNext(i+1); return; }
+            resolve(r.d.answer||null);
+          })
+          .catch(function(e){ errors.push(prov+': '+e.message); tryNext(i+1); });
       }
-      tryNext(0);
-      return;
+      tryNext(0); return;
     }
 
-    // ── Anthropic direct (fallback sans proxy) ──
+    // Anthropic direct
     setStatus('Appel Anthropic...',true);
     var msgs=conv.slice(-8).concat([{role:'user',content:msg}]);
     var tout=new Promise(function(_,rej){setTimeout(function(){rej(new Error('timeout'));},15000);});
-    Promise.race([
-      fetch('https://api.anthropic.com/v1/messages',{
-        method:'POST',
-        headers:{'Content-Type':'application/json','x-api-key':direct,
-          'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-        body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:200,system:SYS,messages:msgs})
-      }),
-      tout
-    ])
-    .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,d:d}; }); })
+    Promise.race([fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':getDirectKey(),'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:250,system:SYS,messages:msgs})
+    }),tout])
+    .then(function(r){return r.json().then(function(d){return{ok:r.ok,d:d};});})
     .then(function(r){
-      if(!r.ok){ resolve('Erreur : '+(r.d.error&&r.d.error.message)||'?'); return; }
+      if(!r.ok){resolve('Erreur : '+(r.d.error&&r.d.error.message)||'?');return;}
       resolve(r.d.content[0].text.trim());
     })
-    .catch(function(e){ resolve(null); });
+    .catch(function(){resolve(null);});
   });
 }
 
-// ══════════════════════
-// CAPTURE + ASK
-// ══════════════════════
-
-// ══════════════════════
-// PROCESS — busy reset garanti
-// ══════════════════════
+// ══ PROCESS ══
 function process(text){
   text=text.trim();
   if(!text||busy) return;
   busy=true;
-
   ub.style.display='block';
   ut.textContent=text;
   addHist('user',text);
-  face('lst');
-  setStatus('Réflexion...',true);
-
+  face('lst'); setStatus('Réflexion...',true);
   var hasKey=!!(getProxy()||getDirectKey());
 
-  function doCall(photo){
-    currentPhoto = photo;
-    var p = hasKey ? searchThenCall(text) : Promise.resolve(null);
+  function doCall(){
+    var p=hasKey?callAPI(text):Promise.resolve(null);
     p.then(function(ans){
-      var response = ans || localR(text) || pick(LR.noclue);
+      var response=ans||localR(text)||pick(LR.noclue);
       conv.push({role:'user',content:text});
       conv.push({role:'assistant',content:response});
       if(conv.length>20) conv=conv.slice(-20);
+      currentPhotos=[];
       addHist('emo',response);
-      currentPhoto = null;
       return say(response);
     })
-    .catch(function(e){ return say('Oups : '+e.message); })
+    .catch(function(e){return say('Oups : '+e.message);})
     .then(function(){
       busy=false;
       if(alwaysListening) scheduleRestart(500);
     });
   }
 
-  // Capture 3 frames espacées pour une meilleure qualité
   if(camActive){
-    captureFrames(function(b64){ doCall(b64); });
+    captureMultiplePhotos(4,200,function(frames){
+      currentPhotos=frames;
+      console.log('[Émo] '+frames.length+' frames capturées');
+      doCall();
+    });
   } else {
-    doCall(null);
+    currentPhotos=[];
+    doCall();
   }
 }
 
-// ══════════════════════
-// TEXT INPUT
-// ══════════════════════
+// ══ TEXT ══
 function send(){
-  var el=document.getElementById('ti'), t=el.value.trim();
-  el.value='';
-  if(t) process(t);
+  var el=document.getElementById('ti'),t=el.value.trim();
+  el.value=''; if(t) process(t);
 }
 
-// ══════════════════════
-// MIC
-// ══════════════════════
+// ══ MIC ══
 var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-var WAKE_WORD='émo'; // détection via regex dans onresult
-var restartTimer=null;
+var WAKE_WORDS=['émo','emo','hémo','aïmo','aimo','émot','émau','émoh','ymo'];
 
 function toggleAlwaysListen(){
-  if(!SR){ say('Micro non supporté.',null,null); return; }
+  if(!SR){ say('Micro non supporté.'); return; }
   alwaysListening=!alwaysListening;
   var btn=document.getElementById('alwaysBtn');
   if(alwaysListening){
-    btn.classList.add('on');
-    btn.textContent='👂 Actif';
+    btn.classList.add('on'); btn.textContent='👂 Actif';
     setStatus('En veille — dis Émo...',false);
     scheduleRestart(100);
   } else {
-    btn.classList.remove('on');
-    btn.textContent='👂 Veille';
+    btn.classList.remove('on'); btn.textContent='👂 Veille';
     clearTimeout(restartTimer);
     stopMicNow();
-    setStatus('En veille',false);
-    face(null);
+    if(!busy){ face(null); setStatus('En veille',false); }
   }
 }
 
@@ -542,11 +461,11 @@ function scheduleRestart(delay){
   restartTimer=setTimeout(function(){
     if(!alwaysListening||busy||micing) return;
     startMic();
-  }, delay||500);
+  },delay||500);
 }
 
 function toggleMic(){
-  if(!SR){ say('Micro non supporté.',null,null); return; }
+  if(!SR){ say('Micro non supporté.'); return; }
   micing?stopMicNow():startMic();
 }
 
@@ -554,10 +473,7 @@ function startMic(){
   if(micing) return;
   if(mic){ try{mic.abort();}catch(e){} mic=null; }
   mic=new SR();
-  mic.lang='fr-FR';
-  mic.continuous=false;
-  mic.interimResults=false;
-  mic.maxAlternatives=1;
+  mic.lang='fr-FR'; mic.continuous=false; mic.interimResults=false; mic.maxAlternatives=1;
 
   mic.onstart=function(){
     micing=true;
@@ -571,30 +487,20 @@ function startMic(){
 
   mic.onresult=function(e){
     var t=e.results[0][0].transcript.trim();
-    var tl=t.toLowerCase()
-      .normalize('NFD').replace(/[\u0300-\u036f]/g,'') // enlève accents
-      .replace(/[^a-z0-9 ]/g,' ');                       // garde lettres/chiffres
+    var tl=t.toLowerCase();
     micing=false;
     if(alwaysListening){
-      // Variantes possibles : "emo", "émo", "aimo", "aemo", "ymo"
-      var wakeRe=/\b(e+mo|ai?mo|ymo)\b/i;
-      var m=wakeRe.exec(tl);
-      if(m){
-        // Récupère le texte APRÈS le wake word dans la transcription originale
-        var origIdx=t.toLowerCase().indexOf(e.results[0][0].transcript.trim().toLowerCase().split(' ').find(function(w){
-          return wakeRe.test(w.normalize('NFD').replace(/[\u0300-\u036f]/g,''));
-        })||'émo');
-        var words=t.split(' ');
-        var wakeWordIdx=-1;
-        for(var i=0;i<words.length;i++){
-          var wn=words[i].toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-          if(wakeRe.test(wn)){ wakeWordIdx=i; break; }
-        }
-        var after=wakeWordIdx>=0 ? words.slice(wakeWordIdx+1).join(' ').trim() : '';
+      var wakeIdx=-1,wakeLen=0;
+      for(var wi=0;wi<WAKE_WORDS.length;wi++){
+        var idx=tl.indexOf(WAKE_WORDS[wi]);
+        if(idx!==-1){ wakeIdx=idx; wakeLen=WAKE_WORDS[wi].length; break; }
+      }
+      if(wakeIdx!==-1){
+        var after=t.slice(wakeIdx+wakeLen).replace(/^[^a-zA-ZÀ-ÿ0-9]+/,'').trim();
         if(after.length>1){
           process(after);
         } else {
-          say('Oui ?',null,null).then(function(){ scheduleRestart(200); });
+          say('Oui ?').then(function(){ scheduleRestart(200); });
         }
       } else {
         face(null);
@@ -613,7 +519,7 @@ function startMic(){
       alwaysListening=false;
       document.getElementById('alwaysBtn').classList.remove('on');
       document.getElementById('alwaysBtn').textContent='👂 Veille';
-      say('Micro refusé.',null,null);
+      say('Micro refusé. Vérifie les permissions.');
     } else if(alwaysListening){
       scheduleRestart(1000);
     } else {
@@ -638,17 +544,13 @@ function startMic(){
 }
 
 function stopMicNow(){
-  micing=false;
-  clearTimeout(restartTimer);
+  micing=false; clearTimeout(restartTimer);
   document.getElementById('mb').classList.remove('on');
   document.getElementById('mb').textContent='🎤 Parler';
   if(mic){ try{mic.stop();}catch(e){} mic=null; }
 }
 
-
-// ══════════════════════
-// HISTORY
-// ══════════════════════
+// ══ HISTORY ══
 function addHist(role,text){
   var d=document.createElement('div');
   d.className='hi '+role;
@@ -657,18 +559,14 @@ function addHist(role,text){
   h.appendChild(d); h.scrollTop=h.scrollHeight;
 }
 
-// ══════════════════════
-// THEME
-// ══════════════════════
+// ══ THEME ══
 function toggleTheme(){
   var l=document.body.classList.toggle('light');
   localStorage.setItem('emo_theme',l?'light':'dark');
   document.getElementById('tb').textContent=l?'☀️':'🌙';
 }
 
-// ══════════════════════
-// FACE CLICK
-// ══════════════════════
+// ══ FACE CLICK ══
 fw.addEventListener('click',function(){
   if(!busy){
     var r=["Tu m'as tapé dessus.","Oui je suis là.","Arrête de me toucher."];
@@ -676,57 +574,20 @@ fw.addEventListener('click',function(){
   }
 });
 
-// ══════════════════════
-// CAMERA — vision + capture
-// ══════════════════════
-var camStream=null, camActive=false;
-
-function initCamera(){
-  if(!navigator.mediaDevices) return;
-  navigator.mediaDevices.getUserMedia({
-    video:{width:{ideal:1280},height:{ideal:720},facingMode:'environment'}
-  })
-  .then(function(s){
-    camStream=s;
-    var v=document.getElementById('cam');
-    var mc=document.getElementById('mc');
-    v.srcObject=s;
-    v.onloadedmetadata=function(){
-      v.play();
-      mc.width=v.videoWidth||1280;
-      mc.height=v.videoHeight||720;
-      setTimeout(function(){
-        camActive=true;
-        document.getElementById('camst').textContent='● CAM ACTIVE';
-      },1500); // laisse la caméra s'ajuster
-    };
-  })
-  .catch(function(e){ console.log('[Émo] Caméra non dispo:',e.message); });
-}
-
-function photoBase64(){
-  if(!camActive) return null;
-  var v=document.getElementById('cam');
-  var mc=document.getElementById('mc');
-  var ctx=mc.getContext('2d');
-  ctx.drawImage(v,0,0,mc.width,mc.height);
-  return mc.toDataURL('image/jpeg',0.92).split(',')[1];
-}
-
-// Capture 3 frames espacées de 200ms, retourne la dernière (la plus nette)
-function captureFrames(cb){
-  if(!camActive){ cb(null); return; }
-  var v=document.getElementById('cam');
-  var mc=document.getElementById('mc');
-  var ctx=mc.getContext('2d');
-  var count=0;
-  var last=null;
-  function snap(){
-    ctx.drawImage(v,0,0,mc.width,mc.height);
-    last=mc.toDataURL('image/jpeg',0.92).split(',')[1];
-    count++;
-    if(count<3) setTimeout(snap,200);
-    else cb(last);
+// ══ INIT ══
+(function(){
+  if(localStorage.getItem('emo_theme')==='light'){
+    document.body.classList.add('light');
+    document.getElementById('tb').textContent='☀️';
   }
-  snap();
-}
+  refreshDots();
+  initCamera();
+  var hasKey=!!(getProxy()||getDirectKey());
+  setTimeout(function(){
+    process(hasKey?"Clé API chargée. Je suis prêt à t'aider !":"Bonjour ! Configure une clé API ou pose-moi une question simple.");
+  },800);
+})();
+</script>
+
+</body>
+</html>
