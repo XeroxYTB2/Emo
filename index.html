@@ -446,55 +446,63 @@ function callProxy(msg, photos){
   return new Promise(function(resolve){
     var proxy = gProxy();
     if(!proxy){ resolve(null); return; }
-    // Force HTTPS
     if(proxy.startsWith('http://')) proxy = proxy.replace('http://','https://');
     var url = proxy + '/api/chat';
-    var payload = {
-      provider: 'groq',
+
+    var basePayload = {
       messages: conv.slice(-8).concat([{role:'user', content:msg}]),
-      images: photos.slice(0, 4),
+      images: photos.slice(0, 4),   // images envoyées à Gemini/Anthropic/OpenAI
       serperKey: gSerper(),
       query: msg
     };
-    // Essaie un seul appel direct à Groq d'abord
-    setSt('Appel...', true);
-    fetch(url, {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify(payload)
-    })
-    .then(function(r){
-      setSt('HTTP ' + r.status, true);
-      return r.text();
-    })
-    .then(function(txt){
-      setSt('Reçu: ' + txt.substring(0,40), true);
-      try {
-        var d = JSON.parse(txt);
-        if(d.answer) { resolve(d.answer); return; }
-        if(d.error) {
-          // Essaie gemini
-          payload.provider = 'gemini';
-          setSt('Err groq, essaie gemini...', true);
-          return fetch(url, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
-            .then(function(r2){ return r2.json(); })
-            .then(function(d2){
-              if(d2.answer){ resolve(d2.answer); }
-              else { setSt('Err: ' + JSON.stringify(d2.error).substring(0,50), false); resolve(null); }
-            });
+
+    // Ordre : Groq (sans images), puis Gemini (avec images), puis Anthropic, OpenAI
+    var ORDER = ['groq','gemini','anthropic','openai'];
+    var i = 0;
+
+    function tryNext(){
+      if(i >= ORDER.length){ resolve(null); return; }
+      var provider = ORDER[i++];
+      var payload = Object.assign({}, basePayload, { provider: provider });
+      // Groq ne supporte pas les images
+      if(provider === 'groq') payload.images = [];
+
+      setSt('Appel ' + provider + '...', true);
+
+      var done = false;
+      var timer = setTimeout(function(){
+        if(done) return; done = true;
+        setSt('Timeout ' + provider, false);
+        tryNext();
+      }, 20000);
+
+      fetch(url, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify(payload)
+      })
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if(done) return; done = true; clearTimeout(timer);
+        if(d.answer){
+          setSt('OK', true);
+          resolve(d.answer);
+        } else {
+          setSt((d.error || 'err').toString().substring(0,40), false);
+          tryNext();
         }
-        resolve(null);
-      } catch(e) {
-        setSt('Parse err: ' + txt.substring(0,40), false);
-        resolve(null);
-      }
-    })
-    .catch(function(e){
-      setSt('Fetch err: ' + e.message, false);
-      resolve(null);
-    });
+      })
+      .catch(function(e){
+        if(done) return; done = true; clearTimeout(timer);
+        setSt('Fetch err: ' + e.message.substring(0,30), false);
+        tryNext();
+      });
+    }
+
+    tryNext();
   });
 }
+
 
 function callDirect(msg){
   return new Promise(function(resolve){
@@ -525,7 +533,10 @@ function callDirect(msg){
 function process(text){
   text = text.trim();
   if(!text || busy) return;
-  busy = true;
+  busy = true; busySince = Date.now();
+  // Affiche dans le champ texte
+  var ti = document.getElementById('ti');
+  if(ti) ti.value = text;
   document.getElementById('ub').style.display = 'block';
   document.getElementById('ut').textContent = text;
   addHist('user', text);
@@ -565,14 +576,16 @@ function finish(response){
   if(conv.length > 20) conv = conv.slice(-20);
   addHist('emo', response);
   // Timeout de sécurité — busy se reset même si say() ne résout pas
+  // Coupe le micro pendant qu'Émo parle (évite qu'il capte sa propre voix)
+  if(always && micObj){ try{ micObj.stop(); }catch(e){} }
   var safetyT = setTimeout(function(){
-    busy = false;
+    busy = false; busySince = 0;
     if(always) schedRestart(300);
   }, 20000);
   say(response).then(function(){
     clearTimeout(safetyT);
     busy = false;
-    if(always) schedRestart(300);
+    if(always) schedRestart(400);
   });
 }
 
@@ -593,6 +606,16 @@ var WAKES = ['émo','emo','hémo','aimo','aïmo','émot','émau','ymo','imo','é
 // Phase 1 : écoute wake word
 // Phase 2 : après wake word seul, écoute la question
 var awaitingQuestion = false; // true = on vient d'entendre le wake word, on attend la question
+var busySince = 0;
+
+// Watchdog — reset busy si bloqué depuis plus de 25s
+setInterval(function(){
+  if(busy && busySince > 0 && (Date.now() - busySince) > 25000){
+    console.log('[Émo] watchdog: busy reset');
+    busy = false; busySince = 0;
+    if(always) schedRestart(300);
+  }
+}, 3000);
 
 function toggleAlways(){
   if(!SR){ say('Micro non supporté.'); return; }
@@ -630,7 +653,7 @@ function startMic(){
   if(micObj){ try{ micObj.abort(); }catch(e){} micObj = null; }
   micObj = new SR();
   micObj.lang = 'fr-FR';
-  micObj.continuous = false;
+  micObj.continuous = always;   // continu en mode veille, one-shot en mode bouton
   micObj.interimResults = false;
 
   micObj.onstart = function(){
@@ -647,9 +670,12 @@ function startMic(){
   };
 
   micObj.onresult = function(e){
-    var t = e.results[0][0].transcript.trim();
+    // Prend uniquement le dernier résultat final
+    var last = e.results[e.results.length - 1];
+    if(!last.isFinal) return;
+    var t = last[0].transcript.trim();
     var tl = t.toLowerCase();
-    micing = false;
+    // En mode continu, micing reste true (le micro tourne toujours)
 
     if(always){
       if(awaitingQuestion){
@@ -711,9 +737,9 @@ function startMic(){
   micObj.onend = function(){
     micing = false;
     if(always){
-      // Toujours reécouter, sauf si Émo est en train de parler (busy)
-      // Dans ce cas finish() relancera le micro après say()
-      if(!busy) schedRestart(150);
+      // Le micro continu s'est arrêté (Android le coupe parfois)
+      // → redémarre sauf si Émo parle (busy), finish() s'en charge alors
+      if(!busy) schedRestart(300);
     } else {
       document.getElementById('mbtn').classList.remove('on');
       document.getElementById('mbtn').textContent = '🎤 Parler';
