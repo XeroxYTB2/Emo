@@ -460,8 +460,7 @@ function process(text){
   })
   .then(function(){
     busy=false; // ← TOUJOURS remis à false, même en cas d'erreur
-    // Reprend l'écoute si mode permanent
-    if(alwaysListening && !micing) startMic();
+    if(alwaysListening) scheduleRestart(500);
   });
 }
 
@@ -478,78 +477,123 @@ function send(){
 // MIC
 // ══════════════════════
 var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-var WAKE_WORD = 'émo';
+var WAKE_WORD='émo';
+var restartTimer=null;
 
 function toggleAlwaysListen(){
-  if(!SR){process('Micro non supporté.');return;}
-  alwaysListening = !alwaysListening;
-  var btn = document.getElementById('alwaysBtn');
+  if(!SR){ say('Micro non supporté.',null,null); return; }
+  alwaysListening=!alwaysListening;
+  var btn=document.getElementById('alwaysBtn');
   if(alwaysListening){
     btn.classList.add('on');
     btn.textContent='👂 Actif';
-    if(!micing) startMic();
+    setStatus('En veille — dis Émo...',false);
+    scheduleRestart(100);
   } else {
     btn.classList.remove('on');
     btn.textContent='👂 Veille';
-    stopMic();
+    clearTimeout(restartTimer);
+    stopMicNow();
+    setStatus('En veille',false);
+    face(null);
   }
 }
 
-function toggleMic(){
-  if(!SR){process("Micro non supporté, utilise le texte.");return;}
-  micing?stopMic():startMic();
+function scheduleRestart(delay){
+  clearTimeout(restartTimer);
+  if(!alwaysListening||busy) return;
+  restartTimer=setTimeout(function(){
+    if(!alwaysListening||busy||micing) return;
+    startMic();
+  }, delay||500);
 }
+
+function toggleMic(){
+  if(!SR){ say('Micro non supporté.',null,null); return; }
+  micing?stopMicNow():startMic();
+}
+
 function startMic(){
-  if(mic){try{mic.abort();}catch(e){}}
-  mic=new SR(); mic.lang='fr-FR'; mic.continuous=false; mic.interimResults=false;
+  if(micing) return;
+  if(mic){ try{mic.abort();}catch(e){} mic=null; }
+  mic=new SR();
+  mic.lang='fr-FR';
+  mic.continuous=false;
+  mic.interimResults=false;
+  mic.maxAlternatives=1;
+
   mic.onstart=function(){
     micing=true;
-    document.getElementById('mb').classList.add('on');
-    document.getElementById('mb').textContent='⏹ Stop';
-    face('lst'); setStatus('Écoute...',true);
+    if(!alwaysListening){
+      document.getElementById('mb').classList.add('on');
+      document.getElementById('mb').textContent='⏹ Stop';
+    }
+    face('lst');
+    setStatus(alwaysListening?'En veille — dis Émo...':'Écoute...',!alwaysListening);
   };
+
   mic.onresult=function(e){
     var t=e.results[0][0].transcript.trim();
     var tl=t.toLowerCase();
+    micing=false;
     if(alwaysListening){
-      // En mode veille permanente : cherche le mot déclencheur
-      var wakeIdx = tl.indexOf(WAKE_WORD);
-      if(wakeIdx !== -1){
-        // Extrait ce qui suit le wake word
-        var after = t.slice(wakeIdx + WAKE_WORD.length).trim();
-        stopMic();
-        if(after.length > 2){
+      var wakeIdx=tl.indexOf(WAKE_WORD);
+      if(wakeIdx!==-1){
+        var after=t.slice(wakeIdx+WAKE_WORD.length).replace(/^[^a-zA-ZÀ-ÿ]+/,'').trim();
+        if(after.length>1){
           process(after);
         } else {
-          // Wake word seul → répond et réécoute
-          say('Oui ?').then(function(){ if(alwaysListening) startMic(); });
+          say('Oui ?',null,null).then(function(){ scheduleRestart(200); });
         }
       } else {
-        // Pas de wake word → réécoute silencieusement
-        stopMicSilent();
-        if(alwaysListening) setTimeout(function(){ startMic(); }, 300);
+        face(null);
+        setStatus('En veille — dis Émo...',false);
+        scheduleRestart(200);
       }
     } else {
-      stopMic();
+      stopMicNow();
       process(t);
     }
   };
-  mic.onerror=function(e){stopMic();if(e.error==='not-allowed')process('Micro refusé. Utilise le texte.');};
-  mic.onend=function(){if(micing)stopMic();};
-  try{mic.start();}catch(e){}
+
+  mic.onerror=function(e){
+    micing=false;
+    if(e.error==='not-allowed'){
+      alwaysListening=false;
+      document.getElementById('alwaysBtn').classList.remove('on');
+      document.getElementById('alwaysBtn').textContent='👂 Veille';
+      say('Micro refusé.',null,null);
+    } else if(alwaysListening){
+      scheduleRestart(1000);
+    } else {
+      stopMicNow();
+    }
+  };
+
+  mic.onend=function(){
+    micing=false;
+    if(alwaysListening&&!busy){
+      setStatus('En veille — dis Émo...',false);
+      scheduleRestart(300);
+    } else if(!alwaysListening){
+      document.getElementById('mb').classList.remove('on');
+      document.getElementById('mb').textContent='🎤 Parler';
+      if(!busy){ face(null); setStatus('En veille',false); }
+    }
+  };
+
+  try{ mic.start(); }
+  catch(e){ micing=false; if(alwaysListening) scheduleRestart(1000); }
 }
-function stopMic(){
+
+function stopMicNow(){
   micing=false;
+  clearTimeout(restartTimer);
   document.getElementById('mb').classList.remove('on');
   document.getElementById('mb').textContent='🎤 Parler';
-  if(!busy&&!alwaysListening){face(null);setStatus('En veille');}
-  if(alwaysListening) setStatus('En veille — dis Émo...',false);
-  if(mic){try{mic.stop();}catch(e){}}
+  if(mic){ try{mic.stop();}catch(e){} mic=null; }
 }
-function stopMicSilent(){
-  micing=false;
-  if(mic){try{mic.stop();}catch(e){}}
-}
+
 
 // ══════════════════════
 // HISTORY
