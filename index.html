@@ -431,8 +431,7 @@ function callProxy(msg, photos){
     var i = 0;
     function tryNext(){
       if(i >= ORDER.length){
-        console.log('[Émo] Tous les providers ont échoué');
-        setSt('Erreur API', false);
+        setSt('Tous échoués', false);
         resolve(null); return;
       }
       payload.provider = ORDER[i++];
@@ -457,13 +456,13 @@ function callProxy(msg, photos){
         if(!d || done) return;
         done = true; clearTimeout(timer);
         console.log('[Émo] Réponse ' + payload.provider + ':', d.error || 'OK');
-        if(d.error){ setSt('Erreur: ' + d.error, false); tryNext(); return; }
+        if(d.error){ setSt('API err: ' + JSON.stringify(d.error).substring(0,30), false); setTimeout(tryNext,500); return; }
         resolve(d.answer || null);
       })
       .catch(function(e){
         if(done) return; done = true; clearTimeout(timer);
-        console.log('[Émo] Fetch error ' + payload.provider + ':', e.message);
-        tryNext();
+        setSt('Err ' + payload.provider + ': ' + e.message.substring(0,20), false);
+        setTimeout(function(){ tryNext(); }, 500);
       });
     }
     tryNext();
@@ -523,13 +522,12 @@ function process(text){
       } else if(local){
         finish(local);
       } else if(!hasConfig){
-        finish('Entre l\'URL du proxy dans la config pour que je puisse t\'aider !');
+        finish('Entre l\'URL du proxy dans la config !');
       } else {
-        finish('Hmm, tous mes providers ont échoué... vérifie les clés API sur Vercel.');
+        finish('Échec proxy. Proxy=' + gProxy().substring(0,30) + ' Vérifie les logs Vercel.');
       }
     }).catch(function(e){
-      console.log('[Émo] process error:', e.message);
-      finish(local || 'Erreur : ' + e.message);
+      finish(local || 'Erreur fetch: ' + e.message);
     });
   });
 }
