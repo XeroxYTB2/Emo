@@ -113,6 +113,7 @@ canvas{display:none}
   </div>
 
   <div class="st" id="st">[ EN VEILLE ]</div>
+  <div id="camst" style="font-size:9px;letter-spacing:2px;opacity:0.4;text-align:center;min-height:12px"></div>
 
   <div class="bub emo">
     <div class="lbl">Émo dit</div>
@@ -122,14 +123,12 @@ canvas{display:none}
     <div class="lbl">Toi</div>
     <div id="ut"></div>
   </div>
-  <div id="camPreviewBox" style="display:none;width:100%;border-radius:12px;overflow:hidden;border:1px solid rgba(126,184,247,0.3)">
-    <img id="camPreview" style="width:100%;display:block;border-radius:12px">
-  </div>
+
 
   <div class="btns">
     <button class="btn" id="mb" onclick="toggleMic()">🎤 Parler</button>
     <button class="btn" id="alwaysBtn" onclick="toggleAlwaysListen()">👂 Veille</button>
-    <button class="btn" id="camBtn" onclick="captureAndAsk()" style="display:none">📸 Montrer</button>
+
     <button class="btn" id="tb" onclick="toggleTheme()">🌙</button>
     <button class="btn" onclick="document.getElementById('hist').classList.toggle('on')">📜</button>
   </div>
@@ -315,7 +314,7 @@ function say(text){
 
     window.speechSynthesis.cancel();
     var u = new SpeechSynthesisUtterance(text);
-    u.lang='fr-FR'; u.rate=0.95; u.pitch=1.2; u.volume=1;
+    u.lang='fr-FR'; u.rate=0.85; u.pitch=1.6; u.volume=1;
     var vs = window.speechSynthesis.getVoices();
     for(var i=0;i<vs.length;i++){
       if(vs[i].lang==='fr-FR'||vs[i].lang.startsWith('fr')){u.voice=vs[i];break;}
@@ -353,7 +352,7 @@ function localR(t){
 // ══════════════════════
 // API
 // ══════════════════════
-var SYS='Tu es Émo, un assistant IA sarcastique et attachant, inspiré de BMO de Adventure Time. Tu parles TOUJOURS en français, tu tutoies toujours ton interlocuteur, tu l\'appelles par "toi" ou "tu". Tes réponses font 1-3 phrases max. Tu es utile, curieux, légèrement impertinent mais toujours bienveillant. Quand on te montre une image, tu la décris avec précision et tu proposes ton aide.';
+var SYS="Tu es Émo, un assistant IA sarcastique et attachant, inspiré de BMO de Adventure Time. Tu parles TOUJOURS en français et tu tutoies toujours. Tes réponses font 1-3 phrases max. Tu es utile, curieux et légèrement impertinent. IMPORTANT : tu as accès à une caméra en temps réel. À chaque message tu reçois une image de ce que la caméra filme en ce moment. Utilise cette image naturellement — si on te demande si la quiche est prête, regarde l'image. Si on te demande le temps dehors, regarde. Si l'image n'est pas pertinente, ignore-la.";
 
 function callAPI(msg){
   return new Promise(function(resolve){
@@ -420,17 +419,6 @@ function callAPI(msg){
 // ══════════════════════
 // CAPTURE + ASK
 // ══════════════════════
-function captureAndAsk(){
-  if(!camActive){ process('La caméra n\'est pas disponible sur cet appareil.'); return; }
-  currentPhoto = photoBase64();
-  // Affiche preview
-  var src = capturePhoto();
-  if(src){
-    document.getElementById('camPreviewBox').style.display='block';
-    document.getElementById('camPreview').src = src;
-  }
-  process("Regarde ce qu'il y a devant moi et décris-le.");
-}
 
 // ══════════════════════
 // PROCESS — busy reset garanti
@@ -446,8 +434,8 @@ function process(text){
   face('lst');
   setStatus('Réflexion...',true);
 
-  // Auto-capture si le message parle de regarder/voir
-  if(camActive && needsCamera(text) && !currentPhoto){
+  // Capture une frame à chaque message si la caméra est active
+  if(camActive){
     currentPhoto = photoBase64();
   }
 
@@ -462,7 +450,7 @@ function process(text){
     if(conv.length>20) conv=conv.slice(-20);
     addHist('emo',response);
     currentPhoto = null; // reset photo après utilisation
-    document.getElementById('camPreviewBox').style.display='none';
+
     return say(response);
   })
   .catch(function(e){
@@ -608,7 +596,7 @@ function initCamera(){
       mc.width=640; mc.height=480;
       v.srcObject = s;
       v.play();
-      document.getElementById('camBtn').style.display='inline-block';
+      document.getElementById('camst').textContent='● CAM ACTIVE';
     })
     .catch(function(e){ console.log('[Émo] Caméra non dispo:', e.message); });
 }
@@ -627,21 +615,7 @@ function photoBase64(){
   return d ? d.split(',')[1] : null;
 }
 
-function needsCamera(text){
-  var t = text.toLowerCase();
-  return /regarde|vois|voir|montre|photo|image|devant|là|ici|exercice|vaisselle|résous|lis|analyse|qu.est.ce que c.est|c.est quoi/.test(t);
-}
 
-function captureAndAsk(){
-  if(!camActive){ process("La caméra n'est pas disponible."); return; }
-  currentPhoto = photoBase64();
-  var src = capturePhoto();
-  if(src){
-    document.getElementById('camPreviewBox').style.display='block';
-    document.getElementById('camPreview').src = src;
-  }
-  process("Regarde ce qu'il y a devant moi et décris-le.");
-}
 // ══════════════════════
 // INIT
 // ══════════════════════
