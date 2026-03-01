@@ -298,6 +298,79 @@ function gttsUrl(text) {
 function say(text) {
   document.getElementById('rt').textContent = text;
   face('spk'); setSt('Parle...', true);
+  // Coupe toute voix en cours
+  if (_currentAudio) { _currentAudio.pause(); _currentAudio = null; }
+  if (window.speechSynthesis) window.speechSynthesis.cancel();
+
+  return new Promise(function(resolve) {
+    var done = false;
+    function done_cb() {
+      if (done) return; done = true;
+      face(null); setSt('En veille', false);
+      resolve();
+    }
+
+    var proxy = gProxy();
+    if (!proxy) {
+      // Pas de proxy — Web Speech uniquement
+      if (!window.speechSynthesis) { done_cb(); return; }
+      var u = new SpeechSynthesisUtterance(text);
+      u.lang = 'fr-FR'; u.rate = 0.85; u.pitch = 1.6; u.volume = 1;
+      var vs = window.speechSynthesis.getVoices();
+      for (var i = 0; i < vs.length; i++) {
+        if (vs[i].lang && vs[i].lang.startsWith('fr')) { u.voice = vs[i]; break; }
+      }
+      var t = setTimeout(done_cb, Math.max(text.split(' ').length * 420, 3000));
+      u.onend = function() { clearTimeout(t); done_cb(); };
+      u.onerror = function(e) { if (e.error !== 'interrupted') { clearTimeout(t); done_cb(); } };
+      window.speechSynthesis.speak(u);
+      return;
+    }
+
+    // Avec proxy — Google TTS UNIQUEMENT, pas de fallback Web Speech
+    if (proxy.startsWith('http://')) proxy = proxy.replace('http://','https://');
+    var ttsUrl = proxy + '/api/tts?text=' + encodeURIComponent(text.substring(0, 200));
+    var audio = new Audio();
+    _currentAudio = audio;
+    var t = setTimeout(function() { done_cb(); }, 15000);
+    audio.oncanplaythrough = function() { audio.play().catch(done_cb); };
+    audio.onended = function() { clearTimeout(t); _currentAudio = null; done_cb(); };
+    audio.onerror = function() {
+      // TTS proxy a échoué — silence (pas de Web Speech qui se superpose)
+      clearTimeout(t); _currentAudio = null; done_cb();
+    };
+    audio.src = ttsUrl;
+    audio.load();
+  });
+}
+
+
+function testVoix(){
+  // Force l'init audio sur iOS (nécessite un geste utilisateur)
+  if(window.speechSynthesis){
+    window.speechSynthesis.cancel();
+    var u = new SpeechSynthesisUtterance('Bonjour !');
+    u.lang='fr-FR'; u.volume=1; u.rate=0.85; u.pitch=1.6;
+    var vs = window.speechSynthesis.getVoices();
+    for(var i=0;i<vs.length;i++){ if(vs[i].lang&&vs[i].lang.startsWith('fr')){u.voice=vs[i];break;} }
+    window.speechSynthesis.speak(u);
+  }
+}
+
+// Précharge les voix dès que possible (iOS Safari les charge en async)
+// ── TTS — Google Translate (marche sur tous les navigateurs) ──
+var _audioCtx = null;
+var _currentAudio = null;
+
+function gttsUrl(text) {
+  // Google Translate TTS — pas de clé, marche partout
+  var encoded = encodeURIComponent(text.substring(0, 200));
+  return 'https://translate.googleapis.com/translate_tts?ie=UTF-8&q=' + encoded + '&tl=fr&client=gtx&ttsspeed=0.9';
+}
+
+function say(text) {
+  document.getElementById('rt').textContent = text;
+  face('spk'); setSt('Parle...', true);
   return new Promise(function(resolve) {
     var done = false;
     function done_cb() {
