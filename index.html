@@ -368,58 +368,6 @@ function gttsUrl(text) {
   return 'https://translate.googleapis.com/translate_tts?ie=UTF-8&q=' + encoded + '&tl=fr&client=gtx&ttsspeed=0.9';
 }
 
-function say(text) {
-  document.getElementById('rt').textContent = text;
-  face('spk'); setSt('Parle...', true);
-  return new Promise(function(resolve) {
-    var done = false;
-    function done_cb() {
-      if (done) return; done = true;
-      face(null); setSt('En veille', false);
-      resolve();
-    }
-    // Stop audio précédent
-    if (_currentAudio) { _currentAudio.pause(); _currentAudio = null; }
-
-    var proxy = gProxy();
-    var useProxy = !!proxy;
-
-    function tryWebSpeech() {
-      if (!window.speechSynthesis) { done_cb(); return; }
-      window.speechSynthesis.cancel();
-      var u = new SpeechSynthesisUtterance(text);
-      u.lang = 'fr-FR'; u.rate = 0.85; u.pitch = 1.6; u.volume = 1;
-      var vs = window.speechSynthesis.getVoices();
-      for (var i = 0; i < vs.length; i++) {
-        if (vs[i].lang && vs[i].lang.startsWith('fr')) { u.voice = vs[i]; break; }
-      }
-      var t = setTimeout(done_cb, Math.min(Math.max(text.split(' ').length * 420, 2500), 12000));
-      u.onend = function() { clearTimeout(t); done_cb(); };
-      u.onerror = function(e) { if (e.error !== 'interrupted') { clearTimeout(t); done_cb(); } };
-      window.speechSynthesis.speak(u);
-    }
-
-    function playAudio(url) {
-      var audio = new Audio();
-      _currentAudio = audio;
-      audio.crossOrigin = 'anonymous';
-      audio.src = url;
-      var t = setTimeout(function() { audio.pause(); tryWebSpeech(); }, 12000);
-      audio.onended = function() { clearTimeout(t); _currentAudio = null; done_cb(); };
-      audio.onerror = function() { clearTimeout(t); _currentAudio = null; tryWebSpeech(); };
-      audio.play().catch(function() { clearTimeout(t); tryWebSpeech(); });
-    }
-
-    // Essaie via le proxy (évite CORS sur certains appareils)
-    if (useProxy) {
-      var ttsUrl = proxy + '/api/tts?text=' + encodeURIComponent(text.substring(0, 200));
-      playAudio(ttsUrl);
-    } else {
-      // Directement Google TTS (peut marcher selon le navigateur)
-      playAudio(gttsUrl(text));
-    }
-  });
-}
 
 function testVoix() {
   say('Bonjour ! Je suis Émo, ton assistant.');
