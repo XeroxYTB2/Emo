@@ -113,6 +113,7 @@ body.light .provrow input{background:rgba(255,255,255,.8)}
   <div class="btns">
     <button class="btn" id="mbtn" onclick="toggleMic()">🎤 Parler</button>
     <button class="btn" id="abtn" onclick="toggleAlways()">👂 Veille</button>
+    <button class="btn" id="vbtn" onclick="testVoix()" title="Tester la voix">🔊</button>
     <button class="btn" id="tbtn" onclick="toggleTheme()">🌙</button>
     <button class="btn" onclick="document.getElementById('hist').classList.toggle('on')">📜</button>
   </div>
@@ -176,7 +177,7 @@ function saveProxy(){
   var v = document.getElementById('kp').value.trim();
   if(!v){ setApist('URL invalide','#f55'); return; }
   localStorage.setItem('emo_proxy', v.replace(/\/+$/, ''));
-  document.getElementById('kp').value = '';
+  // Ne pas effacer le champ — l'utilisateur voit ce qui est sauvegardé
   refreshDots(); setApist('Proxy sauvegardé ✓','#0f8');
 }
 function delProxy(){
@@ -258,9 +259,33 @@ if(window.speechSynthesis){
   window.speechSynthesis.onvoiceschanged = function(){ window.speechSynthesis.getVoices(); };
 }
 
+function testVoix(){
+  // Force l'init audio sur iOS (nécessite un geste utilisateur)
+  if(window.speechSynthesis){
+    window.speechSynthesis.cancel();
+    var u = new SpeechSynthesisUtterance('Bonjour !');
+    u.lang='fr-FR'; u.volume=1; u.rate=0.85; u.pitch=1.6;
+    var vs = window.speechSynthesis.getVoices();
+    for(var i=0;i<vs.length;i++){ if(vs[i].lang&&vs[i].lang.startsWith('fr')){u.voice=vs[i];break;} }
+    window.speechSynthesis.speak(u);
+  }
+}
+
+// Précharge les voix dès que possible (iOS Safari les charge en async)
+var voicesReady = false;
+function loadVoices(){
+  var vs = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  if(vs.length > 0) voicesReady = true;
+  return vs;
+}
+if(window.speechSynthesis){
+  window.speechSynthesis.onvoiceschanged = function(){ loadVoices(); };
+  loadVoices();
+}
+
 function say(text){
   document.getElementById('rt').textContent = text;
-  face('spk'); setSt('Parle', true);
+  face('spk'); setSt('Parle...', true);
   return new Promise(function(resolve){
     var done = false;
     function done_cb(){
@@ -268,21 +293,43 @@ function say(text){
       face(null); setSt('En veille', false);
       resolve();
     }
-    var ms = Math.min(Math.max(text.split(' ').length * 380, 2000), 10000);
+    // Timeout de sécurité
+    var ms = Math.min(Math.max(text.split(' ').length * 420, 2500), 12000);
     var timer = setTimeout(done_cb, ms);
-    if(!window.speechSynthesis){ clearTimeout(timer); setTimeout(done_cb, 600); return; }
-    window.speechSynthesis.cancel();
-    var u = new SpeechSynthesisUtterance(text);
-    u.lang = 'fr-FR'; u.rate = 0.85; u.pitch = 1.6; u.volume = 1;
-    var vs = window.speechSynthesis.getVoices();
-    for(var i = 0; i < vs.length; i++){
-      if(vs[i].lang === 'fr-FR' || vs[i].lang.startsWith('fr')){
-        u.voice = vs[i]; break;
+
+    if(!window.speechSynthesis){ clearTimeout(timer); setTimeout(done_cb, 100); return; }
+
+    function doSpeak(){
+      window.speechSynthesis.cancel();
+      var u = new SpeechSynthesisUtterance(text);
+      u.lang = 'fr-FR'; u.rate = 0.85; u.pitch = 1.6; u.volume = 1;
+      // Cherche la meilleure voix FR
+      var vs = window.speechSynthesis.getVoices();
+      var best = null;
+      for(var i = 0; i < vs.length; i++){
+        if(vs[i].lang === 'fr-FR'){ best = vs[i]; break; }
       }
+      if(!best){
+        for(var i = 0; i < vs.length; i++){
+          if(vs[i].lang && vs[i].lang.startsWith('fr')){ best = vs[i]; break; }
+        }
+      }
+      if(best) u.voice = best;
+      u.onend   = function(){ clearTimeout(timer); done_cb(); };
+      u.onerror = function(e){
+        // 'interrupted' est normal sur iOS quand on cancel(), pas une vraie erreur
+        if(e.error !== 'interrupted'){ clearTimeout(timer); done_cb(); }
+      };
+      window.speechSynthesis.speak(u);
     }
-    u.onend = function(){ clearTimeout(timer); done_cb(); };
-    u.onerror = function(){ clearTimeout(timer); done_cb(); };
-    window.speechSynthesis.speak(u);
+
+    // iOS: si les voix ne sont pas encore chargées, attend un tick
+    var vs = window.speechSynthesis.getVoices();
+    if(vs.length === 0){
+      setTimeout(doSpeak, 250);
+    } else {
+      doSpeak();
+    }
   });
 }
 
