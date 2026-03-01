@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
@@ -124,13 +125,15 @@ canvas{display:none}
     <div id="ut"></div>
   </div>
 
-
   <div class="btns">
     <button class="btn" id="mb" onclick="toggleMic()">🎤 Parler</button>
     <button class="btn" id="alwaysBtn" onclick="toggleAlwaysListen()">👂 Veille</button>
 
-    <button class="btn" id="tb" onclick="toggleTheme()">🌙</button>
-    <button class="btn" onclick="document.getElementById('hist').classList.toggle('on')">📜</button>
+```
+<button class="btn" id="tb" onclick="toggleTheme()">🌙</button>
+<button class="btn" onclick="document.getElementById('hist').classList.toggle('on')">📜</button>
+```
+
   </div>
 
   <div class="irow">
@@ -143,29 +146,32 @@ canvas{display:none}
   <div class="apibox">
     <div class="apititle">Configuration</div>
 
-    <div class="prov">
-      <div class="provlbl"><span class="dot" id="d-proxy"></span>URL Proxy Vercel<span class="free">RECOMMANDÉ</span></div>
-      <div class="provrow">
-        <input type="text" id="k-proxy" placeholder="https://mon-proxy.vercel.app">
-        <button class="btn" onclick="saveProxy()">💾</button>
-        <button class="btn" onclick="delProxy()">🗑</button>
-      </div>
-    </div>
+```
+<div class="prov">
+  <div class="provlbl"><span class="dot" id="d-proxy"></span>URL Proxy Vercel<span class="free">RECOMMANDÉ</span></div>
+  <div class="provrow">
+    <input type="text" id="k-proxy" placeholder="https://mon-proxy.vercel.app">
+    <button class="btn" onclick="saveProxy()">💾</button>
+    <button class="btn" onclick="delProxy()">🗑</button>
+  </div>
+</div>
 
-    <div class="prov">
-      <div class="provlbl"><span class="dot" id="d-anthropic"></span>Anthropic direct<a class="getkey" href="https://console.anthropic.com" target="_blank">Obtenir →</a></div>
-      <div class="provrow">
-        <input type="password" id="k-anthropic" placeholder="sk-ant-...">
-        <button class="btn" onclick="saveKey('anthropic')">💾</button>
-        <button class="btn" onclick="delKey('anthropic')">🗑</button>
-      </div>
-    </div>
+<div class="prov">
+  <div class="provlbl"><span class="dot" id="d-anthropic"></span>Anthropic direct<a class="getkey" href="https://console.anthropic.com" target="_blank">Obtenir →</a></div>
+  <div class="provrow">
+    <input type="password" id="k-anthropic" placeholder="sk-ant-...">
+    <button class="btn" onclick="saveKey('anthropic')">💾</button>
+    <button class="btn" onclick="delKey('anthropic')">🗑</button>
+  </div>
+</div>
 
-    <div class="apist" id="apist"></div>
-    <div class="apihint">
-      Proxy = Gemini + Groq + Anthropic + OpenAI via Vercel (zéro CORS)<br>
-      Direct = Anthropic uniquement (clé dans le navigateur)
-    </div>
+<div class="apist" id="apist"></div>
+<div class="apihint">
+  Proxy = Gemini + Groq + Anthropic + OpenAI via Vercel (zéro CORS)<br>
+  Direct = Anthropic uniquement (clé dans le navigateur)
+</div>
+```
+
   </div>
 </div>
 
@@ -350,10 +356,42 @@ function localR(t){
 }
 
 // ══════════════════════
+// SEARCH (Serper)
+// ══════════════════════
+var SEARCH_KW=/\b(météo|temps|heure|date|actualité|news|qui est|c'est quoi|combien|quand|où|résultat|score|prix|distance|capital|population)\b/i;
+
+function needsSearch(text){
+  return SEARCH_KW.test(text);
+}
+
+function doSearch(query){
+  var proxy=getProxy();
+  if(!proxy) return Promise.resolve(null);
+  return fetch(proxy+'/api/search',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({query:query+' France'})
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(d){ return d.snippet||d.answer||null; })
+  .catch(function(){ return null; });
+}
+
+function searchThenCall(text){
+  if(!needsSearch(text)) return callAPI(text);
+  return doSearch(text).then(function(snippet){
+    if(snippet){
+      var augmented=text+' [Résultat de recherche: '+snippet+']';
+      return callAPI(augmented);
+    }
+    return callAPI(text);
+  });
+}
+
+// ══════════════════════
 // API
 // ══════════════════════
-var SYS="Tu es Émo, un assistant IA sarcastique et attachant, inspiré de BMO de Adventure Time. Tu parles TOUJOURS en français et tu tutoies toujours. Tes réponses font 1-3 phrases max. Tu es utile, curieux et légèrement impertinent. IMPORTANT : tu as accès à une caméra en temps réel. À chaque message tu reçois une image de ce que la caméra filme en ce moment. Utilise cette image naturellement — si on te demande si la quiche est prête, regarde l'image. Si on te demande le temps dehors, regarde. Si l'image n'est pas pertinente, ignore-la.";
-
+var SYS="Tu es Émo, un assistant IA sarcastique et attachant, inspiré de BMO de Adventure Time. Tu parles TOUJOURS en français, tu tutoies toujours, et ton interlocuteur habite en France. Tes réponses font 1-3 phrases max. Tu es utile, curieux et légèrement impertinent. CAMÉRA : tu reçois une image de la caméra à chaque message. Si l'image est nette et pertinente pour la question, utilise-la. Si l'image est floue, sombre ou non pertinente, dis-le honnêtement au lieu d'inventer. N'invente JAMAIS ce que tu vois si tu n'es pas sûr. RECHERCHE : si la question porte sur l'heure, la météo, les actualités ou toute info en temps réel, tu peux utiliser la recherche web — les résultats te seront fournis dans le message.";
 function callAPI(msg){
   return new Promise(function(resolve){
     var proxy = getProxy();
@@ -371,9 +409,8 @@ function callAPI(msg){
         setStatus('Appel '+prov+'...',true);
         var payload={provider:prov, messages:conv.slice(-8).concat([{role:'user',content:msg}])};
         // Ajoute image pour les providers vision
-        if(currentPhoto && (prov==='gemini'||prov==='anthropic'||prov==='openai')){
+        if(currentPhoto && currentPhoto.length > 500 && (prov==='gemini'||prov==='anthropic'||prov==='openai')){
           payload.image = currentPhoto;
-          console.log('[Émo] Image envoyée à '+prov+', taille:', currentPhoto.length);
         }
         var tout=new Promise(function(_,rej){setTimeout(function(){rej(new Error('timeout'));},20000);});
         Promise.race([
@@ -435,33 +472,33 @@ function process(text){
   face('lst');
   setStatus('Réflexion...',true);
 
-  // Capture une frame à chaque message si la caméra est active
-  if(camActive){
-    currentPhoto = photoBase64();
-    console.log('[Émo] Image capturée, taille base64:', currentPhoto ? currentPhoto.length : 'null');
-  }
-
   var hasKey=!!(getProxy()||getDirectKey());
 
-  var p = hasKey ? callAPI(text) : Promise.resolve(null);
+  function doCall(photo){
+    currentPhoto = photo;
+    var p = hasKey ? searchThenCall(text) : Promise.resolve(null);
+    p.then(function(ans){
+      var response = ans || localR(text) || pick(LR.noclue);
+      conv.push({role:'user',content:text});
+      conv.push({role:'assistant',content:response});
+      if(conv.length>20) conv=conv.slice(-20);
+      addHist('emo',response);
+      currentPhoto = null;
+      return say(response);
+    })
+    .catch(function(e){ return say('Oups : '+e.message); })
+    .then(function(){
+      busy=false;
+      if(alwaysListening) scheduleRestart(500);
+    });
+  }
 
-  p.then(function(ans){
-    var response = ans || localR(text) || pick(LR.noclue);
-    conv.push({role:'user',content:text});
-    conv.push({role:'assistant',content:response});
-    if(conv.length>20) conv=conv.slice(-20);
-    addHist('emo',response);
-    currentPhoto = null; // reset photo après utilisation
-
-    return say(response);
-  })
-  .catch(function(e){
-    return say('Oups : '+e.message);
-  })
-  .then(function(){
-    busy=false; // ← TOUJOURS remis à false, même en cas d'erreur
-    if(alwaysListening) scheduleRestart(500);
-  });
+  // Capture 3 frames espacées pour une meilleure qualité
+  if(camActive){
+    captureFrames(function(b64){ doCall(b64); });
+  } else {
+    doCall(null);
+  }
 }
 
 // ══════════════════════
@@ -477,7 +514,7 @@ function send(){
 // MIC
 // ══════════════════════
 var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-var WAKE_WORD='émo';
+var WAKE_WORD='émo'; // détection via regex dans onresult
 var restartTimer=null;
 
 function toggleAlwaysListen(){
@@ -534,12 +571,26 @@ function startMic(){
 
   mic.onresult=function(e){
     var t=e.results[0][0].transcript.trim();
-    var tl=t.toLowerCase();
+    var tl=t.toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g,'') // enlève accents
+      .replace(/[^a-z0-9 ]/g,' ');                       // garde lettres/chiffres
     micing=false;
     if(alwaysListening){
-      var wakeIdx=tl.indexOf(WAKE_WORD);
-      if(wakeIdx!==-1){
-        var after=t.slice(wakeIdx+WAKE_WORD.length).replace(/^[^a-zA-ZÀ-ÿ]+/,'').trim();
+      // Variantes possibles : "emo", "émo", "aimo", "aemo", "ymo"
+      var wakeRe=/\b(e+mo|ai?mo|ymo)\b/i;
+      var m=wakeRe.exec(tl);
+      if(m){
+        // Récupère le texte APRÈS le wake word dans la transcription originale
+        var origIdx=t.toLowerCase().indexOf(e.results[0][0].transcript.trim().toLowerCase().split(' ').find(function(w){
+          return wakeRe.test(w.normalize('NFD').replace(/[\u0300-\u036f]/g,''));
+        })||'émo');
+        var words=t.split(' ');
+        var wakeWordIdx=-1;
+        for(var i=0;i<words.length;i++){
+          var wn=words[i].toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+          if(wakeRe.test(wn)){ wakeWordIdx=i; break; }
+        }
+        var after=wakeWordIdx>=0 ? words.slice(wakeWordIdx+1).join(' ').trim() : '';
         if(after.length>1){
           process(after);
         } else {
@@ -628,55 +679,54 @@ fw.addEventListener('click',function(){
 // ══════════════════════
 // CAMERA — vision + capture
 // ══════════════════════
-var camStream = null;
-var camActive = false;
+var camStream=null, camActive=false;
 
 function initCamera(){
   if(!navigator.mediaDevices) return;
-  navigator.mediaDevices.getUserMedia({video:{width:640,height:480,facingMode:'environment'}})
-    .then(function(s){
-      camStream = s;
-      camActive = true;
-      var v = document.getElementById('cam');
-      var mc = document.getElementById('mc');
-      mc.width=640; mc.height=480;
-      v.srcObject = s;
+  navigator.mediaDevices.getUserMedia({
+    video:{width:{ideal:1280},height:{ideal:720},facingMode:'environment'}
+  })
+  .then(function(s){
+    camStream=s;
+    var v=document.getElementById('cam');
+    var mc=document.getElementById('mc');
+    v.srcObject=s;
+    v.onloadedmetadata=function(){
       v.play();
-      document.getElementById('camst').textContent='● CAM ACTIVE';
-    })
-    .catch(function(e){ console.log('[Émo] Caméra non dispo:', e.message); });
-}
-
-function capturePhoto(){
-  if(!camActive) return null;
-  var v = document.getElementById('cam');
-  var mc = document.getElementById('mc');
-  var ctx = mc.getContext('2d');
-  ctx.drawImage(v, 0, 0, mc.width, mc.height);
-  return mc.toDataURL('image/jpeg', 0.7);
+      mc.width=v.videoWidth||1280;
+      mc.height=v.videoHeight||720;
+      setTimeout(function(){
+        camActive=true;
+        document.getElementById('camst').textContent='● CAM ACTIVE';
+      },1500); // laisse la caméra s'ajuster
+    };
+  })
+  .catch(function(e){ console.log('[Émo] Caméra non dispo:',e.message); });
 }
 
 function photoBase64(){
-  var d = capturePhoto();
-  return d ? d.split(',')[1] : null;
+  if(!camActive) return null;
+  var v=document.getElementById('cam');
+  var mc=document.getElementById('mc');
+  var ctx=mc.getContext('2d');
+  ctx.drawImage(v,0,0,mc.width,mc.height);
+  return mc.toDataURL('image/jpeg',0.92).split(',')[1];
 }
 
-
-// ══════════════════════
-// INIT
-// ══════════════════════
-(function(){
-  if(localStorage.getItem('emo_theme')==='light'){
-    document.body.classList.add('light');
-    document.getElementById('tb').textContent='☀️';
+// Capture 3 frames espacées de 200ms, retourne la dernière (la plus nette)
+function captureFrames(cb){
+  if(!camActive){ cb(null); return; }
+  var v=document.getElementById('cam');
+  var mc=document.getElementById('mc');
+  var ctx=mc.getContext('2d');
+  var count=0;
+  var last=null;
+  function snap(){
+    ctx.drawImage(v,0,0,mc.width,mc.height);
+    last=mc.toDataURL('image/jpeg',0.92).split(',')[1];
+    count++;
+    if(count<3) setTimeout(snap,200);
+    else cb(last);
   }
-  refreshDots();
-  initCamera();
-  var hasKey=!!(getProxy()||getDirectKey());
-  setTimeout(function(){
-    process(hasKey?"Clé API chargée. Je suis prêt à t'aider.":'Bonjour ! Configure une clé API ou pose-moi une question simple.');
-  },500);
-})();
-</script>
-</body>
-</html>
+  snap();
+}
