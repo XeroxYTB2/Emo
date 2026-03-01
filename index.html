@@ -370,9 +370,10 @@ function callAPI(msg){
         var prov=ORDER[i];
         setStatus('Appel '+prov+'...',true);
         var payload={provider:prov, messages:conv.slice(-8).concat([{role:'user',content:msg}])};
-        // Ajoute image si dispo et si le provider le supporte
-        if(currentPhoto && (prov==='gemini'||prov==='anthropic')){
+        // Ajoute image pour les providers vision
+        if(currentPhoto && (prov==='gemini'||prov==='anthropic'||prov==='openai')){
           payload.image = currentPhoto;
+          console.log('[Émo] Image envoyée à '+prov+', taille:', currentPhoto.length);
         }
         var tout=new Promise(function(_,rej){setTimeout(function(){rej(new Error('timeout'));},20000);});
         Promise.race([
@@ -437,6 +438,7 @@ function process(text){
   // Capture une frame à chaque message si la caméra est active
   if(camActive){
     currentPhoto = photoBase64();
+    console.log('[Émo] Image capturée, taille base64:', currentPhoto ? currentPhoto.length : 'null');
   }
 
   var hasKey=!!(getProxy()||getDirectKey());
