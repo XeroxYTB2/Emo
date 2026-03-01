@@ -5,7 +5,18 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') { res.status(204).end(); return; }
   if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return; }
 
-  const body = req.body || {};
+  // Parse body — Vercel ne le fait pas toujours automatiquement
+  let body = {};
+  try {
+    if (req.body && typeof req.body === 'object') {
+      body = req.body;
+    } else {
+      const chunks = [];
+      for await (const chunk of req) chunks.push(chunk);
+      body = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
+    }
+  } catch(e) { body = {}; }
+
   const provider = body.provider || '';
   const messages = body.messages || [];
   const images = (body.images || []).filter(Boolean);
@@ -15,13 +26,15 @@ export default async function handler(req, res) {
   const prev = messages.slice(0, -1);
   const lastTxt = messages.length ? (messages[messages.length-1].content || '') : '';
 
+  // Log pour debug
+  console.log(`[emo] provider=${provider} msgs=${messages.length} imgs=${images.length} hasGroq=${!!process.env.GROQ_KEY} hasGemini=${!!process.env.GEMINI_KEY}`);
+
   const now = new Date().toLocaleString('fr-FR', { timeZone: 'Europe/Paris', dateStyle: 'full', timeStyle: 'short' });
   const SYS = `Tu es Émo, assistant IA sarcastique et attachant inspiré de BMO. TOUJOURS en français, tutoiement, 1-3 phrases max. L'utilisateur habite en France. Date/heure : ${now}. Si tu reçois des images, décris UNIQUEMENT ce que tu vois vraiment. Si des résultats web sont entre [WEB][/WEB], utilise-les.`;
 
   // Serper search
   let webCtx = null;
-  const needsWeb = /heure|météo|meteo|pluie|soleil|neige|actualité|news|aujourd.hui|maintenant|prix|score|match|mort|décès|récent|2025|2026/.test(query.toLowerCase());
-  if (query && needsWeb) {
+  if (query && /heure|météo|meteo|pluie|soleil|neige|actualité|news|aujourd.hui|maintenant|prix|score|match|mort|décès|récent|2025|2026/.test(query.toLowerCase())) {
     const sk = serperKey || process.env.SERPER_KEY;
     if (sk) {
       try {
@@ -42,8 +55,7 @@ export default async function handler(req, res) {
   }
 
   const enriched = lastTxt + (webCtx ? `\n\n[WEB]\n${webCtx}\n[/WEB]` : '');
-
-  const fail = (msg, code=400) => res.status(code).json({ error: msg });
+  const fail = (msg, code=400) => { console.log(`[emo ERROR] ${msg}`); return res.status(code).json({ error: msg }); };
 
   try {
     let answer;
@@ -108,7 +120,7 @@ export default async function handler(req, res) {
       answer = d.choices[0].message.content.trim();
 
     } else {
-      return fail('Provider inconnu: '+provider);
+      return fail('Provider inconnu: ' + provider);
     }
 
     res.status(200).json({ answer });
