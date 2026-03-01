@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
@@ -130,7 +129,7 @@ body.light .provrow input{background:rgba(255,255,255,.8)}
     <div class="prov">
       <div class="provlbl"><span class="dot" id="dp"></span>Proxy Vercel<a class="getkey" href="https://vercel.com" target="_blank">vercel.com →</a></div>
       <div class="provrow">
-        <input type="text" id="kp" placeholder="https://mon-proxy.vercel.app">
+        <input type="text" id="kp" placeholder="https://mon-proxy.vercel.app" oninput="autoSaveProxy(this.value)">
         <button class="btn" onclick="saveProxy()">💾</button>
         <button class="btn" onclick="delProxy()">🗑</button>
       </div>
@@ -138,23 +137,20 @@ body.light .provrow input{background:rgba(255,255,255,.8)}
     <div class="prov">
       <div class="provlbl"><span class="dot" id="ds"></span>Serper – Google Search<a class="getkey" href="https://serper.dev" target="_blank">Obtenir →</a></div>
       <div class="provrow">
-        <input type="password" id="ks" placeholder="Clé Serper (serper.dev)…" oninput="saveSerper(this.value)">
+        <input type="password" id="ks" placeholder="Clé Serper (serper.dev)…" oninput="autoSaveSerper(this.value)">
         <button class="btn" onclick="delSerper()">🗑</button>
       </div>
     </div>
 
-```
-<div class="prov">
-  <div class="provlbl"><span class="dot" id="da"></span>Anthropic direct<a class="getkey" href="https://console.anthropic.com" target="_blank">Obtenir →</a></div>
-  <div class="provrow">
-    <input type="password" id="ka" placeholder="sk-ant-...">
-    <button class="btn" onclick="saveAnthropic()">💾</button>
-    <button class="btn" onclick="delAnthropic()">🗑</button>
-  </div>
-</div>
-<div class="apist" id="apist"></div>
-```
-
+    <div class="prov">
+      <div class="provlbl"><span class="dot" id="da"></span>Anthropic direct<a class="getkey" href="https://console.anthropic.com" target="_blank">Obtenir →</a></div>
+      <div class="provrow">
+        <input type="password" id="ka" placeholder="sk-ant-..." oninput="autoSaveAnthr(this.value)">
+        <button class="btn" onclick="saveAnthropic()">💾</button>
+        <button class="btn" onclick="delAnthropic()">🗑</button>
+      </div>
+    </div>
+    <div class="apist" id="apist"></div>
   </div>
 </div>
 
@@ -167,6 +163,14 @@ function saveSerper(v){
   var val = (v !== undefined) ? v : document.getElementById('ks').value.trim();
   if(val){ localStorage.setItem('emo_serper', val); refreshDots(); }
 }
+function autoSaveSerper(val){
+  if(val && val.length > 5){ localStorage.setItem('emo_serper', val.trim()); refreshDots(); }
+  else if(!val){ localStorage.removeItem('emo_serper'); refreshDots(); }
+}
+function autoSaveAnthr(val){
+  if(val && val.startsWith('sk-ant-')){ localStorage.setItem('emo_anthr', val.trim()); refreshDots(); }
+  else if(!val){ localStorage.removeItem('emo_anthr'); refreshDots(); }
+}
 function delSerper(){
   localStorage.removeItem('emo_serper');
   var el = document.getElementById('ks'); if(el) el.value = '';
@@ -177,8 +181,17 @@ function saveProxy(){
   var v = document.getElementById('kp').value.trim();
   if(!v){ setApist('URL invalide','#f55'); return; }
   localStorage.setItem('emo_proxy', v.replace(/\/+$/, ''));
-  // Ne pas effacer le champ — l'utilisateur voit ce qui est sauvegardé
   refreshDots(); setApist('Proxy sauvegardé ✓','#0f8');
+}
+function autoSaveProxy(val){
+  var v = val.trim();
+  if(v.startsWith('http')){
+    localStorage.setItem('emo_proxy', v.replace(/\/+$/, ''));
+    refreshDots();
+  } else if(!v){
+    localStorage.removeItem('emo_proxy');
+    refreshDots();
+  }
 }
 function delProxy(){
   localStorage.removeItem('emo_proxy');
@@ -210,7 +223,7 @@ function refreshDots(){
   var el = document.getElementById('apist');
   if(p){ el.style.color='#0f8'; el.textContent='✓ Proxy : ' + p.replace('https://','') + (s?' + Search':''); }
   else if(a){ el.style.color='#0f8'; el.textContent='✓ Anthropic direct'; }
-  else { el.style.color='#f55'; el.textContent='⚠ Aucune config'; }
+  else { el.style.color='#f55'; el.textContent='⚠ Aucune config — entre l\'URL du proxy !'; }
 }
 
 // ── STATE ──
@@ -293,8 +306,7 @@ function say(text){
       face(null); setSt('En veille', false);
       resolve();
     }
-    // Timeout de sécurité
-    var ms = Math.min(Math.max(text.split(' ').length * 420, 2500), 12000);
+    var ms = Math.min(Math.max(text.split(' ').length * 420, 2500), 14000);
     var timer = setTimeout(done_cb, ms);
 
     if(!window.speechSynthesis){ clearTimeout(timer); setTimeout(done_cb, 100); return; }
@@ -303,30 +315,42 @@ function say(text){
       window.speechSynthesis.cancel();
       var u = new SpeechSynthesisUtterance(text);
       u.lang = 'fr-FR'; u.rate = 0.85; u.pitch = 1.6; u.volume = 1;
-      // Cherche la meilleure voix FR
       var vs = window.speechSynthesis.getVoices();
       var best = null;
+      // Cherche voix FR de qualité (priorité : Google FR, puis Microsoft FR, puis any FR)
       for(var i = 0; i < vs.length; i++){
-        if(vs[i].lang === 'fr-FR'){ best = vs[i]; break; }
-      }
-      if(!best){
-        for(var i = 0; i < vs.length; i++){
-          if(vs[i].lang && vs[i].lang.startsWith('fr')){ best = vs[i]; break; }
-        }
+        var v = vs[i];
+        if(!v.lang || !v.lang.startsWith('fr')) continue;
+        if(!best) best = v;
+        if(v.name.indexOf('Google') !== -1 || v.name.indexOf('Microsoft') !== -1){ best = v; break; }
       }
       if(best) u.voice = best;
-      u.onend   = function(){ clearTimeout(timer); done_cb(); };
+      u.onend = function(){ clearTimeout(timer); done_cb(); };
       u.onerror = function(e){
-        // 'interrupted' est normal sur iOS quand on cancel(), pas une vraie erreur
-        if(e.error !== 'interrupted'){ clearTimeout(timer); done_cb(); }
+        if(e.error !== 'interrupted' && e.error !== 'canceled'){ clearTimeout(timer); done_cb(); }
       };
+      // Chrome Android : keepalive nécessaire pour éviter que la synthèse s'arrête
+      var isChrome = /Chrome/.test(navigator.userAgent) && /Android/.test(navigator.userAgent);
+      if(isChrome){
+        var keepAlive = setInterval(function(){
+          if(done){ clearInterval(keepAlive); return; }
+          window.speechSynthesis.pause();
+          window.speechSynthesis.resume();
+        }, 10000);
+        u.onend = function(){ clearInterval(keepAlive); clearTimeout(timer); done_cb(); };
+        u.onerror = function(e){ clearInterval(keepAlive); if(e.error !== 'interrupted'){ clearTimeout(timer); done_cb(); } };
+      }
       window.speechSynthesis.speak(u);
     }
 
-    // iOS: si les voix ne sont pas encore chargées, attend un tick
+    // Attente chargement voix (Firefox/Chrome chargent en async)
     var vs = window.speechSynthesis.getVoices();
     if(vs.length === 0){
-      setTimeout(doSpeak, 250);
+      var tries = 0;
+      var poll = setInterval(function(){
+        var vs2 = window.speechSynthesis.getVoices();
+        if(vs2.length > 0 || tries++ > 10){ clearInterval(poll); doSpeak(); }
+      }, 150);
     } else {
       doSpeak();
     }
@@ -400,7 +424,7 @@ var SYS = "Tu es Émo, un assistant IA sarcastique et attachant, inspiré de BMO
 function callProxy(msg, photos){
   return new Promise(function(resolve){
     var proxy = gProxy();
-    if(!proxy){ resolve(null); return; }
+    if(!proxy){ console.log('[Émo] Pas de proxy configuré'); resolve(null); return; }
     var payload = {
       provider: 'gemini',
       messages: conv.slice(-8).concat([{role:'user', content:msg}]),
@@ -408,27 +432,44 @@ function callProxy(msg, photos){
       serperKey: gSerper(),
       query: msg
     };
-    var tout = new Promise(function(_, rej){ setTimeout(function(){ rej(new Error('timeout')); }, 20000); });
     var ORDER = ['gemini','groq','anthropic','openai'];
     var i = 0;
     function tryNext(){
-      if(i >= ORDER.length){ resolve(null); return; }
+      if(i >= ORDER.length){
+        console.log('[Émo] Tous les providers ont échoué');
+        setSt('Erreur API', false);
+        resolve(null); return;
+      }
       payload.provider = ORDER[i++];
       setSt('Appel ' + payload.provider + '...', true);
-      Promise.race([
-        fetch(proxy + '/api/chat', {
-          method: 'POST',
-          headers: {'Content-Type':'application/json'},
-          body: JSON.stringify(payload)
-        }),
-        tout
-      ])
-      .then(function(r){ return r.json(); })
+      // Timeout individuel par provider
+      var done = false;
+      var timer = setTimeout(function(){
+        if(done) return; done = true;
+        console.log('[Émo] Timeout ' + payload.provider);
+        tryNext();
+      }, 15000);
+      fetch(proxy + '/api/chat', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify(payload)
+      })
+      .then(function(r){
+        if(done) return null;
+        return r.json();
+      })
       .then(function(d){
-        if(d.error){ tryNext(); return; }
+        if(!d || done) return;
+        done = true; clearTimeout(timer);
+        console.log('[Émo] Réponse ' + payload.provider + ':', d.error || 'OK');
+        if(d.error){ setSt('Erreur: ' + d.error, false); tryNext(); return; }
         resolve(d.answer || null);
       })
-      .catch(function(){ tryNext(); });
+      .catch(function(e){
+        if(done) return; done = true; clearTimeout(timer);
+        console.log('[Émo] Fetch error ' + payload.provider + ':', e.message);
+        tryNext();
+      });
     }
     tryNext();
   });
@@ -482,9 +523,18 @@ function process(text){
     // Appel API
     var p = gProxy() ? callProxy(text, photos) : callDirect(text);
     p.then(function(ans){
-      finish(ans || local || 'Configure une clé API pour que je puisse vraiment t\'aider !');
+      if(ans){
+        finish(ans);
+      } else if(local){
+        finish(local);
+      } else if(!hasConfig){
+        finish('Entre l\'URL du proxy dans la config pour que je puisse t\'aider !');
+      } else {
+        finish('Hmm, tous mes providers ont échoué... vérifie les clés API sur Vercel.');
+      }
     }).catch(function(e){
-      finish(local || 'Oups : ' + e.message);
+      console.log('[Émo] process error:', e.message);
+      finish(local || 'Erreur : ' + e.message);
     });
   });
 }
@@ -670,6 +720,5 @@ document.getElementById('fw').addEventListener('click', function(){
   }, 800);
 })();
 </script>
-
 </body>
 </html>
