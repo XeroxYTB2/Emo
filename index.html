@@ -419,53 +419,54 @@ var SYS = "Tu es Émo, un assistant IA sarcastique et attachant, inspiré de BMO
 function callProxy(msg, photos){
   return new Promise(function(resolve){
     var proxy = gProxy();
-    if(!proxy){ console.log('[Émo] Pas de proxy configuré'); resolve(null); return; }
+    if(!proxy){ resolve(null); return; }
+    // Force HTTPS
+    if(proxy.startsWith('http://')) proxy = proxy.replace('http://','https://');
+    var url = proxy + '/api/chat';
     var payload = {
-      provider: 'gemini',
+      provider: 'groq',
       messages: conv.slice(-8).concat([{role:'user', content:msg}]),
       images: photos.slice(0, 4),
       serperKey: gSerper(),
       query: msg
     };
-    var ORDER = ['gemini','groq','anthropic','openai'];
-    var i = 0;
-    function tryNext(){
-      if(i >= ORDER.length){
-        setSt('Tous échoués', false);
-        resolve(null); return;
+    // Essaie un seul appel direct à Groq d'abord
+    setSt('Appel...', true);
+    fetch(url, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    })
+    .then(function(r){
+      setSt('HTTP ' + r.status, true);
+      return r.text();
+    })
+    .then(function(txt){
+      setSt('Reçu: ' + txt.substring(0,40), true);
+      try {
+        var d = JSON.parse(txt);
+        if(d.answer) { resolve(d.answer); return; }
+        if(d.error) {
+          // Essaie gemini
+          payload.provider = 'gemini';
+          setSt('Err groq, essaie gemini...', true);
+          return fetch(url, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
+            .then(function(r2){ return r2.json(); })
+            .then(function(d2){
+              if(d2.answer){ resolve(d2.answer); }
+              else { setSt('Err: ' + JSON.stringify(d2.error).substring(0,50), false); resolve(null); }
+            });
+        }
+        resolve(null);
+      } catch(e) {
+        setSt('Parse err: ' + txt.substring(0,40), false);
+        resolve(null);
       }
-      payload.provider = ORDER[i++];
-      setSt('Appel ' + payload.provider + '...', true);
-      // Timeout individuel par provider
-      var done = false;
-      var timer = setTimeout(function(){
-        if(done) return; done = true;
-        console.log('[Émo] Timeout ' + payload.provider);
-        tryNext();
-      }, 15000);
-      fetch(proxy + '/api/chat', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify(payload)
-      })
-      .then(function(r){
-        if(done) return null;
-        return r.json();
-      })
-      .then(function(d){
-        if(!d || done) return;
-        done = true; clearTimeout(timer);
-        console.log('[Émo] Réponse ' + payload.provider + ':', d.error || 'OK');
-        if(d.error){ setSt('API err: ' + JSON.stringify(d.error).substring(0,30), false); setTimeout(tryNext,500); return; }
-        resolve(d.answer || null);
-      })
-      .catch(function(e){
-        if(done) return; done = true; clearTimeout(timer);
-        setSt('Err ' + payload.provider + ': ' + e.message.substring(0,20), false);
-        setTimeout(function(){ tryNext(); }, 500);
-      });
-    }
-    tryNext();
+    })
+    .catch(function(e){
+      setSt('Fetch err: ' + e.message, false);
+      resolve(null);
+    });
   });
 }
 
