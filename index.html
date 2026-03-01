@@ -599,21 +599,17 @@ function send(){
 
 // ── MIC ──
 var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-var WAKES = ['émo','emo','hémo','aimo','aïmo','émot','émau','ymo','imo','é moi','e moi'];
+// Wake words — variantes phonétiques de "Émo"
+var WAKES = ['émo','emo','hémo','aimo','aïmo','ymo','imo','é mo','e mo','némo','nemo'];
 
-// ── ÉTAT MACHINE : idle → listening → wakeheard → processing → speaking → idle
-// always=true = mode écoute continue
-// Phase 1 : écoute wake word
-// Phase 2 : après wake word seul, écoute la question
-var awaitingQuestion = false; // true = on vient d'entendre le wake word, on attend la question
+var awaitingQuestion = false;
 var busySince = 0;
 
-// Watchdog — reset busy si bloqué depuis plus de 25s
+// Watchdog — si busy bloqué > 25s, reset
 setInterval(function(){
   if(busy && busySince > 0 && (Date.now() - busySince) > 25000){
-    console.log('[Émo] watchdog: busy reset');
     busy = false; busySince = 0;
-    if(always) schedRestart(300);
+    if(always) startMic();
   }
 }, 3000);
 
@@ -638,9 +634,9 @@ function schedRestart(delay){
   clearTimeout(restartT);
   if(!always) return;
   restartT = setTimeout(function(){
-    if(!always || micing) return;
+    if(!always || micing || busy) return;
     startMic();
-  }, delay || 500);
+  }, delay || 400);
 }
 
 function toggleMic(){
@@ -653,7 +649,7 @@ function startMic(){
   if(micObj){ try{ micObj.abort(); }catch(e){} micObj = null; }
   micObj = new SR();
   micObj.lang = 'fr-FR';
-  micObj.continuous = always;   // continu en mode veille, one-shot en mode bouton
+  micObj.continuous = false;   // toujours false — plus fiable sur Android
   micObj.interimResults = false;
 
   micObj.onstart = function(){
@@ -670,18 +666,18 @@ function startMic(){
   };
 
   micObj.onresult = function(e){
-    // Prend uniquement le dernier résultat final
-    var last = e.results[e.results.length - 1];
-    if(!last.isFinal) return;
-    var t = last[0].transcript.trim();
+    var t = e.results[0][0].transcript.trim();
     var tl = t.toLowerCase();
-    // En mode continu, micing reste true (le micro tourne toujours)
+    micing = false;
 
     if(always){
       if(awaitingQuestion){
-        // On attendait la question après le wake word → traiter directement
+        // On attendait la question → traite
         awaitingQuestion = false;
         if(t.length > 0){
+          // Affiche dans le champ
+          var ti = document.getElementById('ti');
+          if(ti) ti.value = t;
           process(t);
         } else {
           setSt('Dis Émo...', false);
@@ -692,29 +688,32 @@ function startMic(){
 
       // Cherche le wake word
       var found = -1, wlen = 0;
-      for(var i = 0; i < WAKES.length; i++){
-        var wi = tl.indexOf(WAKES[i]);
-        if(wi !== -1){ found = wi; wlen = WAKES[i].length; break; }
+      for(var wi = 0; wi < WAKES.length; wi++){
+        var pos = tl.indexOf(WAKES[wi]);
+        if(pos !== -1){ found = pos; wlen = WAKES[wi].length; break; }
       }
 
       if(found !== -1){
-        var after = t.slice(found + wlen).replace(/^[^a-zA-ZÀ-ÿ0-9]+/, '').trim();
+        var after = t.slice(found + wlen).replace(/^[\s,.\-!?]+/, '').trim();
         if(after.length > 1){
-          // "Émo quelle heure est-il ?" → traite directement
+          // "Émo quelle heure ?" → traite directement
+          var ti = document.getElementById('ti');
+          if(ti) ti.value = after;
           process(after);
         } else {
-          // "Émo" seul → dit "Oui ?" et attend la question
+          // "Émo" seul → dit "Oui ?" puis attend la question
           awaitingQuestion = true;
           say('Oui ?').then(function(){
-            if(always) schedRestart(200);
+            if(always && !busy) schedRestart(200);
           });
         }
       } else {
-        // Pas de wake word → reécoute immédiatement
-        schedRestart(100);
+        // Pas de wake word → reécoute
+        schedRestart(200);
       }
+
     } else {
-      // Mode bouton → affiche dans le champ et traite
+      // Mode bouton
       var ti = document.getElementById('ti');
       if(ti) ti.value = t;
       process(t);
@@ -724,11 +723,13 @@ function startMic(){
   micObj.onerror = function(e){
     micing = false;
     if(e.error === 'not-allowed'){
-      always = false;
-      awaitingQuestion = false;
+      always = false; awaitingQuestion = false;
       document.getElementById('abtn').classList.remove('on');
       document.getElementById('abtn').textContent = '👂 Veille';
       setSt('Micro refusé', false);
+    } else if(e.error === 'no-speech'){
+      // Silence détecté → reécoute immédiatement
+      if(always) schedRestart(100);
     } else if(e.error !== 'aborted'){
       if(always) schedRestart(800);
     }
@@ -737,9 +738,8 @@ function startMic(){
   micObj.onend = function(){
     micing = false;
     if(always){
-      // Le micro continu s'est arrêté (Android le coupe parfois)
-      // → redémarre sauf si Émo parle (busy), finish() s'en charge alors
-      if(!busy) schedRestart(300);
+      if(!busy) schedRestart(200);
+      // Si busy → finish() relancera après say()
     } else {
       document.getElementById('mbtn').classList.remove('on');
       document.getElementById('mbtn').textContent = '🎤 Parler';
@@ -752,11 +752,11 @@ function startMic(){
 }
 
 function stopMic(){
-  micing = false;
-  awaitingQuestion = false;
+  micing = false; awaitingQuestion = false;
+  clearTimeout(restartT);
   document.getElementById('mbtn').classList.remove('on');
   document.getElementById('mbtn').textContent = '🎤 Parler';
-  if(micObj){ try{ micObj.stop(); }catch(e){} micObj = null; }
+  if(micObj){ try{ micObj.abort(); }catch(e){} micObj = null; }
 }
 
 // ── HISTORY ──
