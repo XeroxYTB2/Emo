@@ -285,76 +285,71 @@ function testVoix(){
 }
 
 // Précharge les voix dès que possible (iOS Safari les charge en async)
-var voicesReady = false;
-function loadVoices(){
-  var vs = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
-  if(vs.length > 0) voicesReady = true;
-  return vs;
-}
-if(window.speechSynthesis){
-  window.speechSynthesis.onvoiceschanged = function(){ loadVoices(); };
-  loadVoices();
+// ── TTS — Google Translate (marche sur tous les navigateurs) ──
+var _audioCtx = null;
+var _currentAudio = null;
+
+function gttsUrl(text) {
+  // Google Translate TTS — pas de clé, marche partout
+  var encoded = encodeURIComponent(text.substring(0, 200));
+  return 'https://translate.googleapis.com/translate_tts?ie=UTF-8&q=' + encoded + '&tl=fr&client=gtx&ttsspeed=0.9';
 }
 
-function say(text){
+function say(text) {
   document.getElementById('rt').textContent = text;
   face('spk'); setSt('Parle...', true);
-  return new Promise(function(resolve){
+  return new Promise(function(resolve) {
     var done = false;
-    function done_cb(){
-      if(done) return; done = true;
+    function done_cb() {
+      if (done) return; done = true;
       face(null); setSt('En veille', false);
       resolve();
     }
-    var ms = Math.min(Math.max(text.split(' ').length * 420, 2500), 14000);
-    var timer = setTimeout(done_cb, ms);
+    // Stop audio précédent
+    if (_currentAudio) { _currentAudio.pause(); _currentAudio = null; }
 
-    if(!window.speechSynthesis){ clearTimeout(timer); setTimeout(done_cb, 100); return; }
+    var proxy = gProxy();
+    var useProxy = !!proxy;
 
-    function doSpeak(){
+    function tryWebSpeech() {
+      if (!window.speechSynthesis) { done_cb(); return; }
       window.speechSynthesis.cancel();
       var u = new SpeechSynthesisUtterance(text);
       u.lang = 'fr-FR'; u.rate = 0.85; u.pitch = 1.6; u.volume = 1;
       var vs = window.speechSynthesis.getVoices();
-      var best = null;
-      // Cherche voix FR de qualité (priorité : Google FR, puis Microsoft FR, puis any FR)
-      for(var i = 0; i < vs.length; i++){
-        var v = vs[i];
-        if(!v.lang || !v.lang.startsWith('fr')) continue;
-        if(!best) best = v;
-        if(v.name.indexOf('Google') !== -1 || v.name.indexOf('Microsoft') !== -1){ best = v; break; }
+      for (var i = 0; i < vs.length; i++) {
+        if (vs[i].lang && vs[i].lang.startsWith('fr')) { u.voice = vs[i]; break; }
       }
-      if(best) u.voice = best;
-      u.onend = function(){ clearTimeout(timer); done_cb(); };
-      u.onerror = function(e){
-        if(e.error !== 'interrupted' && e.error !== 'canceled'){ clearTimeout(timer); done_cb(); }
-      };
-      // Chrome Android : keepalive nécessaire pour éviter que la synthèse s'arrête
-      var isChrome = /Chrome/.test(navigator.userAgent) && /Android/.test(navigator.userAgent);
-      if(isChrome){
-        var keepAlive = setInterval(function(){
-          if(done){ clearInterval(keepAlive); return; }
-          window.speechSynthesis.pause();
-          window.speechSynthesis.resume();
-        }, 10000);
-        u.onend = function(){ clearInterval(keepAlive); clearTimeout(timer); done_cb(); };
-        u.onerror = function(e){ clearInterval(keepAlive); if(e.error !== 'interrupted'){ clearTimeout(timer); done_cb(); } };
-      }
+      var t = setTimeout(done_cb, Math.min(Math.max(text.split(' ').length * 420, 2500), 12000));
+      u.onend = function() { clearTimeout(t); done_cb(); };
+      u.onerror = function(e) { if (e.error !== 'interrupted') { clearTimeout(t); done_cb(); } };
       window.speechSynthesis.speak(u);
     }
 
-    // Attente chargement voix (Firefox/Chrome chargent en async)
-    var vs = window.speechSynthesis.getVoices();
-    if(vs.length === 0){
-      var tries = 0;
-      var poll = setInterval(function(){
-        var vs2 = window.speechSynthesis.getVoices();
-        if(vs2.length > 0 || tries++ > 10){ clearInterval(poll); doSpeak(); }
-      }, 150);
+    function playAudio(url) {
+      var audio = new Audio();
+      _currentAudio = audio;
+      audio.crossOrigin = 'anonymous';
+      audio.src = url;
+      var t = setTimeout(function() { audio.pause(); tryWebSpeech(); }, 12000);
+      audio.onended = function() { clearTimeout(t); _currentAudio = null; done_cb(); };
+      audio.onerror = function() { clearTimeout(t); _currentAudio = null; tryWebSpeech(); };
+      audio.play().catch(function() { clearTimeout(t); tryWebSpeech(); });
+    }
+
+    // Essaie via le proxy (évite CORS sur certains appareils)
+    if (useProxy) {
+      var ttsUrl = proxy + '/api/tts?text=' + encodeURIComponent(text.substring(0, 200));
+      playAudio(ttsUrl);
     } else {
-      doSpeak();
+      // Directement Google TTS (peut marcher selon le navigateur)
+      playAudio(gttsUrl(text));
     }
   });
+}
+
+function testVoix() {
+  say('Bonjour ! Je suis Émo, ton assistant.');
 }
 
 // ── LOCAL FALLBACK ──
