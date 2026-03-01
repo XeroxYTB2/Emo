@@ -135,14 +135,25 @@ body.light .provrow input{background:rgba(255,255,255,.8)}
       </div>
     </div>
     <div class="prov">
-      <div class="provlbl"><span class="dot" id="da"></span>Anthropic direct<a class="getkey" href="https://console.anthropic.com" target="_blank">Obtenir →</a></div>
+      <div class="provlbl"><span class="dot" id="ds"></span>Serper – Google Search<a class="getkey" href="https://serper.dev" target="_blank">Obtenir →</a></div>
       <div class="provrow">
-        <input type="password" id="ka" placeholder="sk-ant-...">
-        <button class="btn" onclick="saveAnthropic()">💾</button>
-        <button class="btn" onclick="delAnthropic()">🗑</button>
+        <input type="password" id="ks" placeholder="Clé Serper (serper.dev)…" oninput="saveSerper(this.value)">
+        <button class="btn" onclick="delSerper()">🗑</button>
       </div>
     </div>
-    <div class="apist" id="apist"></div>
+
+```
+<div class="prov">
+  <div class="provlbl"><span class="dot" id="da"></span>Anthropic direct<a class="getkey" href="https://console.anthropic.com" target="_blank">Obtenir →</a></div>
+  <div class="provrow">
+    <input type="password" id="ka" placeholder="sk-ant-...">
+    <button class="btn" onclick="saveAnthropic()">💾</button>
+    <button class="btn" onclick="delAnthropic()">🗑</button>
+  </div>
+</div>
+<div class="apist" id="apist"></div>
+```
+
   </div>
 </div>
 
@@ -150,6 +161,16 @@ body.light .provrow input{background:rgba(255,255,255,.8)}
 // ── STORAGE ──
 function gProxy(){ return localStorage.getItem('emo_proxy') || ''; }
 function gAnthr(){ return localStorage.getItem('emo_anthr') || ''; }
+function gSerper(){ return localStorage.getItem('emo_serper') || ''; }
+function saveSerper(v){
+  var val = (v !== undefined) ? v : document.getElementById('ks').value.trim();
+  if(val){ localStorage.setItem('emo_serper', val); refreshDots(); }
+}
+function delSerper(){
+  localStorage.removeItem('emo_serper');
+  var el = document.getElementById('ks'); if(el) el.value = '';
+  refreshDots();
+}
 
 function saveProxy(){
   var v = document.getElementById('kp').value.trim();
@@ -180,11 +201,13 @@ function setApist(msg, color){
   setTimeout(refreshDots, 2000);
 }
 function refreshDots(){
-  var p = gProxy(), a = gAnthr();
+  var p = gProxy(), a = gAnthr(), s = gSerper();
   document.getElementById('dp').classList.toggle('on', !!p);
   document.getElementById('da').classList.toggle('on', !!a);
+  var ds = document.getElementById('ds');
+  if(ds) ds.classList.toggle('on', !!s);
   var el = document.getElementById('apist');
-  if(p){ el.style.color='#0f8'; el.textContent='✓ Proxy : ' + p.replace('https://',''); }
+  if(p){ el.style.color='#0f8'; el.textContent='✓ Proxy : ' + p.replace('https://','') + (s?' + Search':''); }
   else if(a){ el.style.color='#0f8'; el.textContent='✓ Anthropic direct'; }
   else { el.style.color='#f55'; el.textContent='⚠ Aucune config'; }
 }
@@ -240,14 +263,14 @@ function say(text){
   face('spk'); setSt('Parle', true);
   return new Promise(function(resolve){
     var done = false;
-    function finish(){
+    function done_cb(){
       if(done) return; done = true;
       face(null); setSt('En veille', false);
       resolve();
     }
     var ms = Math.min(Math.max(text.split(' ').length * 380, 2000), 10000);
-    var timer = setTimeout(finish, ms);
-    if(!window.speechSynthesis){ clearTimeout(timer); setTimeout(finish, 600); return; }
+    var timer = setTimeout(done_cb, ms);
+    if(!window.speechSynthesis){ clearTimeout(timer); setTimeout(done_cb, 600); return; }
     window.speechSynthesis.cancel();
     var u = new SpeechSynthesisUtterance(text);
     u.lang = 'fr-FR'; u.rate = 0.85; u.pitch = 1.6; u.volume = 1;
@@ -257,8 +280,8 @@ function say(text){
         u.voice = vs[i]; break;
       }
     }
-    u.onend = function(){ clearTimeout(timer); finish(); };
-    u.onerror = function(){ clearTimeout(timer); finish(); };
+    u.onend = function(){ clearTimeout(timer); done_cb(); };
+    u.onerror = function(){ clearTimeout(timer); done_cb(); };
     window.speechSynthesis.speak(u);
   });
 }
@@ -297,7 +320,8 @@ function initCam(){
         setTimeout(function(){
           camActive = true;
           setInfo('● CAM');
-        }, 2000);
+          console.log('[Émo cam] Active, résolution:', v.videoWidth, 'x', v.videoHeight);
+        }, 3000);  // 3s pour laisser l'autofocus se stabiliser
       };
     })
     .catch(function(){});
@@ -313,16 +337,18 @@ function snapFrame(){
 
 function captureFrames(cb){
   if(!camActive){ cb([]); return; }
-  var out = [], i = 0;
-  function next(){
-    var f = snapFrame(); if(f) out.push(f);
-    if(++i < 4) setTimeout(next, 200); else cb(out);
-  }
-  next();
+  var out = [], i = 0, total = 3;
+  // Attend 500ms que la scène soit nette, puis prend 3 frames espacées de 400ms
+  setTimeout(function snap(){
+    var f = snapFrame();
+    if(f) out.push(f);
+    if(++i < total) setTimeout(snap, 400);
+    else cb(out);
+  }, 500);
 }
 
 // ── API ──
-var SYS = "Tu es Émo, un assistant IA sarcastique et attachant, inspiré de BMO. Tu parles TOUJOURS en français, tu tutoies toujours. Tes réponses font 1-3 phrases max. Tu es utile et légèrement impertinent. L'utilisateur habite en France. Tu as accès à une caméra : tu reçois des images de ce que la caméra voit. Si les images sont inutilisables, dis-le honnêtement. Quand des résultats web te sont fournis dans ton contexte, utilise-les pour répondre. Cherche sur internet UNIQUEMENT ce que tu ne peux pas savoir toi-même (météo, actualités, événements récents, prix en temps réel). Pour tout le reste réponds directement.";
+var SYS = "Tu es Émo, un assistant IA sarcastique et attachant, inspiré de BMO. Tu parles TOUJOURS en français, tu tutoies toujours, tu fais 1-3 phrases max. L'utilisateur habite en France (fuseau Europe/Paris). RÈGLES IMPORTANTES : (1) Tu reçois parfois des images de la caméra — décris UNIQUEMENT ce que tu vois vraiment, n'invente rien, si c'est flou dis-le. (2) Quand des résultats web sont fournis entre [WEB] et [/WEB], utilise-les pour répondre avec précision. (3) Ne dis jamais que tu ne peux pas chercher sur internet — le proxy s'en charge avant de t'appeler. (4) Pour l'heure, la météo, l'actualité : la réponse est déjà dans le contexte web fourni.";
 
 function callProxy(msg, photos){
   return new Promise(function(resolve){
@@ -331,7 +357,9 @@ function callProxy(msg, photos){
     var payload = {
       provider: 'gemini',
       messages: conv.slice(-8).concat([{role:'user', content:msg}]),
-      images: photos.slice(0, 4)
+      images: photos.slice(0, 4),
+      serperKey: gSerper(),
+      query: msg
     };
     var tout = new Promise(function(_, rej){ setTimeout(function(){ rej(new Error('timeout')); }, 20000); });
     var ORDER = ['gemini','groq','anthropic','openai'];
@@ -489,6 +517,7 @@ function startMic(){
     var t = e.results[0][0].transcript.trim();
     var tl = t.toLowerCase();
     micing = false;
+    console.log('[Émo mic] Entendu:', JSON.stringify(tl), '| always:', always);
 
     if(always){
       // Cherche le wake word
@@ -584,9 +613,13 @@ document.getElementById('fw').addEventListener('click', function(){
   }
   refreshDots();
   initCam();
+  // Pré-remplir les champs si clés sauvegardées
+  if(gProxy()) document.getElementById('kp').value = gProxy();
+  if(gAnthr()) document.getElementById('ka').value = gAnthr();
+  if(gSerper()) document.getElementById('ks').value = gSerper();
   setTimeout(function(){
     var hasConfig = !!(gProxy() || gAnthr());
-    process(hasConfig ? "Clé API chargée. Je suis prêt !" : "Bonjour ! Configure une clé API ou pose-moi une question simple.");
+    process(hasConfig ? "Clé API chargée, je suis prêt !" : "Bonjour ! Configure une clé API ou pose-moi une question simple.");
   }, 800);
 })();
 </script>
