@@ -564,9 +564,14 @@ function finish(response){
   conv.push({role:'assistant', content:response});
   if(conv.length > 20) conv = conv.slice(-20);
   addHist('emo', response);
-  say(response).then(function(){
+  // Timeout de sécurité — busy se reset même si say() ne résout pas
+  var safetyT = setTimeout(function(){
     busy = false;
-    // Micro redémarre APRÈS que la réponse soit finie
+    if(always) schedRestart(300);
+  }, 20000);
+  say(response).then(function(){
+    clearTimeout(safetyT);
+    busy = false;
     if(always) schedRestart(300);
   });
 }
@@ -581,21 +586,28 @@ function send(){
 
 // ── MIC ──
 var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-var WAKES = ['émo','emo','hémo','aimo','aïmo','émot','émau','ymo','imo'];
+var WAKES = ['émo','emo','hémo','aimo','aïmo','émot','émau','ymo','imo','é moi','e moi'];
+
+// ── ÉTAT MACHINE : idle → listening → wakeheard → processing → speaking → idle
+// always=true = mode écoute continue
+// Phase 1 : écoute wake word
+// Phase 2 : après wake word seul, écoute la question
+var awaitingQuestion = false; // true = on vient d'entendre le wake word, on attend la question
 
 function toggleAlways(){
   if(!SR){ say('Micro non supporté.'); return; }
   always = !always;
+  awaitingQuestion = false;
   var btn = document.getElementById('abtn');
   if(always){
     btn.classList.add('on'); btn.textContent = '👂 Actif';
     setSt('Dis Émo...', false);
-    schedRestart(200);
+    setTimeout(startMic, 300);
   } else {
     btn.classList.remove('on'); btn.textContent = '👂 Veille';
     clearTimeout(restartT);
     stopMic();
-    if(!busy){ face(null); setSt('En veille', false); }
+    face(null); setSt('En veille', false);
   }
 }
 
@@ -604,9 +616,8 @@ function schedRestart(delay){
   if(!always) return;
   restartT = setTimeout(function(){
     if(!always || micing) return;
-    if(busy) { schedRestart(300); return; } // retry si encore busy
     startMic();
-  }, delay || 600);
+  }, delay || 500);
 }
 
 function toggleMic(){
@@ -628,8 +639,11 @@ function startMic(){
       document.getElementById('mbtn').classList.add('on');
       document.getElementById('mbtn').textContent = '⏹ Stop';
     }
-    face('lst');
-    setSt(always ? 'Dis Émo...' : 'Écoute...', !always);
+    if(awaitingQuestion){
+      face('hpy'); setSt('Ta question ?', false);
+    } else {
+      face('lst'); setSt(always ? 'Dis Émo...' : 'Écoute...', false);
+    }
   };
 
   micObj.onresult = function(e){
@@ -638,32 +652,45 @@ function startMic(){
     micing = false;
 
     if(always){
+      if(awaitingQuestion){
+        // On attendait la question après le wake word → traiter directement
+        awaitingQuestion = false;
+        if(t.length > 0){
+          process(t);
+        } else {
+          setSt('Dis Émo...', false);
+          schedRestart(300);
+        }
+        return;
+      }
+
       // Cherche le wake word
       var found = -1, wlen = 0;
       for(var i = 0; i < WAKES.length; i++){
         var wi = tl.indexOf(WAKES[i]);
         if(wi !== -1){ found = wi; wlen = WAKES[i].length; break; }
       }
+
       if(found !== -1){
         var after = t.slice(found + wlen).replace(/^[^a-zA-ZÀ-ÿ0-9]+/, '').trim();
         if(after.length > 1){
-          // Wake word + question dans le même énoncé → traite directement
+          // "Émo quelle heure est-il ?" → traite directement
           process(after);
         } else {
-          // Wake word seul → dit "Oui ?" PUIS relance le micro pour capter la question
-          face('hpy'); setSt('Pose ta question...', false);
+          // "Émo" seul → dit "Oui ?" et attend la question
+          awaitingQuestion = true;
           say('Oui ?').then(function(){
-            // Micro redémarre APRÈS que "Oui ?" ait fini de parler
-            if(always) schedRestart(150);
+            if(always) schedRestart(200);
           });
         }
       } else {
-        // Pas de wake word → reécoute
-        setSt('Dis Émo...', false);
-        schedRestart(200);
+        // Pas de wake word → reécoute immédiatement
+        schedRestart(100);
       }
     } else {
-      // Mode bouton normal
+      // Mode bouton → affiche dans le champ et traite
+      var ti = document.getElementById('ti');
+      if(ti) ti.value = t;
       process(t);
     }
   };
@@ -672,24 +699,22 @@ function startMic(){
     micing = false;
     if(e.error === 'not-allowed'){
       always = false;
+      awaitingQuestion = false;
       document.getElementById('abtn').classList.remove('on');
       document.getElementById('abtn').textContent = '👂 Veille';
-      say('Micro refusé. Vérifie les permissions.');
-    } else if(always){
-      schedRestart(1000);
-    } else {
-      stopMic();
+      setSt('Micro refusé', false);
+    } else if(e.error !== 'aborted'){
+      if(always) schedRestart(800);
     }
   };
 
   micObj.onend = function(){
     micing = false;
-    if(always && !busy){
-      // Micro s'est arrêté naturellement → reécoute
-      schedRestart(200);
-    } else if(always && busy){
-      // Émo parle — le micro se relancera dans finish() après say()
-    } else if(!always){
+    if(always){
+      // Toujours reécouter, sauf si Émo est en train de parler (busy)
+      // Dans ce cas finish() relancera le micro après say()
+      if(!busy) schedRestart(150);
+    } else {
       document.getElementById('mbtn').classList.remove('on');
       document.getElementById('mbtn').textContent = '🎤 Parler';
       if(!busy){ face(null); setSt('En veille', false); }
@@ -702,6 +727,7 @@ function startMic(){
 
 function stopMic(){
   micing = false;
+  awaitingQuestion = false;
   document.getElementById('mbtn').classList.remove('on');
   document.getElementById('mbtn').textContent = '🎤 Parler';
   if(micObj){ try{ micObj.stop(); }catch(e){} micObj = null; }
