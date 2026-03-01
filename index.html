@@ -332,13 +332,18 @@ function say(text) {
     var ttsUrl = proxy + '/api/tts?text=' + encodeURIComponent(text.substring(0, 200));
     var audio = new Audio();
     _currentAudio = audio;
-    var t = setTimeout(function() { done_cb(); }, 15000);
-    audio.oncanplaythrough = function() { audio.play().catch(done_cb); };
-    audio.onended = function() { clearTimeout(t); _currentAudio = null; done_cb(); };
-    audio.onerror = function() {
-      // TTS proxy a échoué — silence (pas de Web Speech qui se superpose)
-      clearTimeout(t); _currentAudio = null; done_cb();
+    // Timeout garanti basé sur la longueur du texte (évite que busy reste bloqué)
+    var estDuration = Math.max(text.split(' ').length * 400, 2000) + 3000;
+    var t = setTimeout(function() { _currentAudio = null; done_cb(); }, estDuration);
+    audio.oncanplaythrough = function() {
+      audio.play().catch(function() { clearTimeout(t); _currentAudio = null; done_cb(); });
     };
+    audio.onended = function() { clearTimeout(t); _currentAudio = null; done_cb(); };
+    audio.onpause = function() {
+      // Sur Android, onpause peut se déclencher à la fin au lieu de onended
+      if (audio.ended) { clearTimeout(t); _currentAudio = null; done_cb(); }
+    };
+    audio.onerror = function() { clearTimeout(t); _currentAudio = null; done_cb(); };
     audio.src = ttsUrl;
     audio.load();
   });
@@ -561,7 +566,8 @@ function finish(response){
   addHist('emo', response);
   say(response).then(function(){
     busy = false;
-    if(always) schedRestart(500);
+    // Micro redémarre APRÈS que la réponse soit finie
+    if(always) schedRestart(300);
   });
 }
 
@@ -595,9 +601,10 @@ function toggleAlways(){
 
 function schedRestart(delay){
   clearTimeout(restartT);
-  if(!always || busy) return;
+  if(!always) return;
   restartT = setTimeout(function(){
-    if(!always || busy || micing) return;
+    if(!always || micing) return;
+    if(busy) { schedRestart(300); return; } // retry si encore busy
     startMic();
   }, delay || 600);
 }
@@ -629,36 +636,34 @@ function startMic(){
     var t = e.results[0][0].transcript.trim();
     var tl = t.toLowerCase();
     micing = false;
-    console.log('[Émo mic] Entendu:', JSON.stringify(tl), '| always:', always);
 
     if(always){
       // Cherche le wake word
       var found = -1, wlen = 0;
       for(var i = 0; i < WAKES.length; i++){
-        var idx = tl.indexOf(WAKES[i]);
-        if(idx !== -1){ found = idx; wlen = WAKES[i].length; break; }
+        var wi = tl.indexOf(WAKES[i]);
+        if(wi !== -1){ found = wi; wlen = WAKES[i].length; break; }
       }
       if(found !== -1){
         var after = t.slice(found + wlen).replace(/^[^a-zA-ZÀ-ÿ0-9]+/, '').trim();
         if(after.length > 1){
-          // Question déjà dans le même énoncé
+          // Wake word + question dans le même énoncé → traite directement
           process(after);
         } else {
-          // Wake word seul — dit "Oui ?" et relance IMMÉDIATEMENT le micro
-          // pour capturer la question suivante (sans attendre la fin de l'audio)
-          bloop();
-          setSt('Pose ta question...', true);
-          face('hpy');
-          schedRestart(200); // relance le micro très vite
-          say('Oui ?'); // en parallèle (pas de .then)
+          // Wake word seul → dit "Oui ?" PUIS relance le micro pour capter la question
+          face('hpy'); setSt('Pose ta question...', false);
+          say('Oui ?').then(function(){
+            // Micro redémarre APRÈS que "Oui ?" ait fini de parler
+            if(always) schedRestart(150);
+          });
         }
       } else {
-        face(null);
+        // Pas de wake word → reécoute
         setSt('Dis Émo...', false);
-        schedRestart(300);
+        schedRestart(200);
       }
     } else {
-      stopMic();
+      // Mode bouton normal
       process(t);
     }
   };
@@ -680,8 +685,10 @@ function startMic(){
   micObj.onend = function(){
     micing = false;
     if(always && !busy){
-      setSt('Dis Émo...', false);
-      schedRestart(400);
+      // Micro s'est arrêté naturellement → reécoute
+      schedRestart(200);
+    } else if(always && busy){
+      // Émo parle — le micro se relancera dans finish() après say()
     } else if(!always){
       document.getElementById('mbtn').classList.remove('on');
       document.getElementById('mbtn').textContent = '🎤 Parler';
