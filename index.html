@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
@@ -142,57 +141,26 @@ body.light .provrow input{background:rgba(255,255,255,.8)}
         <button class="btn" onclick="delSerper()">🗑</button>
       </div>
     </div>
+
+
     <div class="prov">
-      <div class="provlbl">🔊 Voix synthétique</div>
-      <div class="provrow" style="gap:8px">
-        <button class="btn" id="tts_google" onclick="setTtsMode('google')">Google TTS</button>
-        <button class="btn" id="tts_system" onclick="setTtsMode('system')">Voix système (iOS/Android)</button>
+      <div class="provlbl"><span class="dot" id="da"></span>Anthropic direct<a class="getkey" href="https://console.anthropic.com" target="_blank">Obtenir →</a></div>
+      <div class="provrow">
+        <input type="password" id="ka" placeholder="sk-ant-..." oninput="autoSaveAnthr(this.value)">
+        <button class="btn" onclick="saveAnthropic()">💾</button>
+        <button class="btn" onclick="delAnthropic()">🗑</button>
       </div>
     </div>
+    <div class="apist" id="apist"></div>
 
-```
-<div class="prov">
-  <div class="provlbl"><span class="dot" id="da"></span>Anthropic direct<a class="getkey" href="https://console.anthropic.com" target="_blank">Obtenir →</a></div>
-  <div class="provrow">
-    <input type="password" id="ka" placeholder="sk-ant-..." oninput="autoSaveAnthr(this.value)">
-    <button class="btn" onclick="saveAnthropic()">💾</button>
-    <button class="btn" onclick="delAnthropic()">🗑</button>
-  </div>
-</div>
-<div class="apist" id="apist"></div>
-
-<div class="prov">
-  <div class="provlbl">🔊 Voix</div>
-  <div class="provrow" style="gap:6px;flex-wrap:wrap;">
-    <button class="btn" id="btn_tts_google" onclick="setTtsMode('google')" style="flex:1">🌐 Google TTS</button>
-    <button class="btn" id="btn_tts_system" onclick="setTtsMode('system')" style="flex:1">📱 Voix système</button>
-  </div>
-  <div id="tts_status" style="font-size:11px;color:#aaa;margin-top:4px;text-align:center"></div>
-</div>
-```
-
+    
   </div>
 </div>
 
 <script>
 // ── STORAGE ──
 function gProxy(){ return localStorage.getItem('emo_proxy') || ''; }
-function gTtsMode(){ return localStorage.getItem('emo_tts') || 'google'; }
-function setTtsMode(m){
-  localStorage.setItem('emo_tts', m);
-  document.getElementById('tts_google').style.opacity = m==='google' ? '1' : '0.4';
-  document.getElementById('tts_system').style.opacity = m==='system' ? '1' : '0.4';
-}
-function updateTtsButtons(){
-  var m = gTtsMode();
-  var bg = document.getElementById('btn_tts_google');
-  var bs = document.getElementById('btn_tts_system');
-  var st = document.getElementById('tts_status');
-  if(!bg) return;
-  bg.style.background = m==='google' ? '#3a7' : '';
-  bs.style.background = m==='system' ? '#3a7' : '';
-  if(st) st.textContent = m==='google' ? 'Google TTS via proxy (toutes plateformes)' : 'Voix native iOS/Android/Windows';
-}
+
 function gAnthr(){ return localStorage.getItem('emo_anthr') || ''; }
 function gSerper(){ return localStorage.getItem('emo_serper') || ''; }
 function saveSerper(v){
@@ -327,7 +295,7 @@ function gttsUrl(text) {
 function say(text) {
   document.getElementById('rt').textContent = text;
   face('spk'); setSt('Parle...', true);
-  if (_currentAudio) { _currentAudio.pause(); _currentAudio = null; }
+  if (_currentAudio) { try{_currentAudio.pause();}catch(e){} _currentAudio = null; }
   if (window.speechSynthesis) window.speechSynthesis.cancel();
 
   return new Promise(function(resolve) {
@@ -337,20 +305,20 @@ function say(text) {
       face(null); setSt('En veille', false);
       resolve();
     }
-    var safeMs = Math.max(text.split(' ').length * 500, 3000) + 5000;
-    var safeT = setTimeout(done_cb, safeMs);
-    function cleanup() { clearTimeout(safeT); _currentAudio = null; done_cb(); }
+    // Timeout garanti = durée estimée + marge
+    // Sur iOS, onended ne se déclenche pas toujours → ce timeout est le vrai déclencheur
+    var words = text.split(/\s+/).length;
+    var estMs = Math.max(words * 480, 2500);
+    var safeT = setTimeout(done_cb, estMs + 4000);
 
-    var ttsMode = gTtsMode();
     var proxy = gProxy();
     if (proxy && proxy.startsWith('http://')) proxy = proxy.replace('http://','https://');
 
-    function useSystemVoice() {
-      if (!window.speechSynthesis) { cleanup(); return; }
-      window.speechSynthesis.cancel();
+    if (!proxy) {
+      // Pas de proxy → Web Speech
+      if (!window.speechSynthesis) { clearTimeout(safeT); done_cb(); return; }
       var u = new SpeechSynthesisUtterance(text);
       u.lang = 'fr-FR'; u.rate = 0.85; u.pitch = 1.5; u.volume = 1;
-      // Cherche une voix française
       var vs = window.speechSynthesis.getVoices();
       for (var i = 0; i < vs.length; i++) {
         if (vs[i].lang && vs[i].lang.startsWith('fr')) { u.voice = vs[i]; break; }
@@ -358,25 +326,38 @@ function say(text) {
       u.onend = function() { clearTimeout(safeT); done_cb(); };
       u.onerror = function(e) { if (e.error !== 'interrupted') { clearTimeout(safeT); done_cb(); } };
       window.speechSynthesis.speak(u);
+      return;
     }
 
-    function useGoogleTts() {
-      if (!proxy) { useSystemVoice(); return; }
-      var url = proxy + '/api/tts?text=' + encodeURIComponent(text.substring(0, 200));
-      var audio = new Audio();
-      _currentAudio = audio;
-      audio.onended = function() { cleanup(); };
-      audio.onpause = function() { if (audio.ended) cleanup(); };
-      audio.onerror = function() { cleanup(); };
-      audio.src = url;
-      audio.play().catch(function() { _currentAudio = null; useSystemVoice(); });
-    }
-
-    if (ttsMode === 'system') {
-      useSystemVoice();
-    } else {
-      useGoogleTts();
-    }
+    // Google TTS via proxy
+    var url = proxy + '/api/tts?text=' + encodeURIComponent(text.substring(0, 200));
+    var audio = new Audio();
+    _currentAudio = audio;
+    // onended → résout immédiatement (avant le timeout)
+    audio.onended = function() { clearTimeout(safeT); _currentAudio = null; done_cb(); };
+    // onpause = fin sur certains Android
+    audio.onpause = function() { if(audio.ended){ clearTimeout(safeT); _currentAudio = null; done_cb(); } };
+    // onerror → résout quand même (silence, pas de double voix)
+    audio.onerror = function() { clearTimeout(safeT); _currentAudio = null; done_cb(); };
+    audio.src = url;
+    // Sur iOS, play() doit être appelé dans un event handler utilisateur
+    // Ici on est appelé après un résultat micro (= interaction) donc ça marche
+    audio.play().catch(function(err) {
+      // Autoplay bloqué → résout via timeout (silence)
+      clearTimeout(safeT);
+      _currentAudio = null;
+      // Essaie Web Speech en fallback
+      if (window.speechSynthesis) {
+        var u2 = new SpeechSynthesisUtterance(text);
+        u2.lang = 'fr-FR'; u2.rate = 0.85; u2.pitch = 1.5;
+        var t2 = setTimeout(done_cb, estMs + 2000);
+        u2.onend = function(){ clearTimeout(t2); done_cb(); };
+        u2.onerror = function(){ clearTimeout(t2); done_cb(); };
+        window.speechSynthesis.speak(u2);
+      } else {
+        done_cb();
+      }
+    });
   });
 }
 
@@ -545,14 +526,11 @@ function snapFrame(){
 
 function captureFrames(cb){
   if(!camActive){ cb([]); return; }
-  var out = [], i = 0, total = 1; // 1 frame suffit, 3 frames dépasse la limite Vercel
-  // Attend 500ms que la scène soit nette, puis prend 3 frames espacées de 400ms
-  setTimeout(function snap(){
-    var f = snapFrame();
-    if(f) out.push(f);
-    if(++i < total) setTimeout(snap, 400);
-    else cb(out);
-  }, 500);
+  // Capture immédiate — pas de délai pour ne pas bloquer le micro
+  var frames = [];
+  var f = snapFrame();
+  if(f) frames.push(f);
+  cb(frames);
 }
 
 // ── API ──
@@ -825,10 +803,15 @@ function startMic(){
           if(ti) ti.value = after;
           process(after);
         } else {
-          // "Émo" seul → dit "Oui ?" puis attend la question
+          // "Émo" seul → dit "Oui ?" puis relance le micro
           awaitingQuestion = true;
+          // Relance via .then() ET via timeout de secours (iOS)
+          var wakeT = setTimeout(function(){
+            if(always && awaitingQuestion && !micing) startMic();
+          }, 3500);
           say('Oui ?').then(function(){
-            if(always && !busy) schedRestart(200);
+            clearTimeout(wakeT);
+            if(always && !busy) schedRestart(150);
           });
         }
       } else {
@@ -919,14 +902,7 @@ document.getElementById('fw').addEventListener('click', function(){
   initCam();
   // Pré-remplir les champs si clés sauvegardées
   if(gProxy()) document.getElementById('kp').value = gProxy();
-  // Init boutons TTS
-  (function(){ 
-    var m = gTtsMode(); 
-    var bg = document.getElementById('tts_google');
-    var bs = document.getElementById('tts_system');
-    if(bg) bg.style.opacity = m==='google'?'1':'0.4'; 
-    if(bs) bs.style.opacity = m==='system'?'1':'0.4'; 
-  })();
+
   if(gAnthr()) document.getElementById('ka').value = gAnthr();
   if(gSerper()) document.getElementById('ks').value = gSerper();
   setTimeout(function(){
@@ -934,7 +910,649 @@ document.getElementById('fw').addEventListener('click', function(){
     process(hasConfig ? "Clé API chargée, je suis prêt !" : "Bonjour ! Configure une clé API ou pose-moi une question simple.");
   }, 800);
 })();
-</script>
 
+// ── SPEECH ──
+if(window.speechSynthesis){
+  window.speechSynthesis.getVoices();
+  window.speechSynthesis.onvoiceschanged = function(){ window.speechSynthesis.getVoices(); };
+}
+
+function testVoix(){
+  say('Bonjour ! Je suis Émo, ton assistant.');
+}
+
+
+// Précharge les voix dès que possible (iOS Safari les charge en async)
+// ── TTS — Google Translate (marche sur tous les navigateurs) ──
+var _audioCtx = null;
+var _currentAudio = null;
+
+function gttsUrl(text) {
+  // Google Translate TTS — pas de clé, marche partout
+  var encoded = encodeURIComponent(text.substring(0, 200));
+  return 'https://translate.googleapis.com/translate_tts?ie=UTF-8&q=' + encoded + '&tl=fr&client=gtx&ttsspeed=0.9';
+}
+
+function say(text) {
+  document.getElementById('rt').textContent = text;
+  face('spk'); setSt('Parle...', true);
+  if (_currentAudio) { try{_currentAudio.pause();}catch(e){} _currentAudio = null; }
+  if (window.speechSynthesis) window.speechSynthesis.cancel();
+
+  return new Promise(function(resolve) {
+    var done = false;
+    function done_cb() {
+      if (done) return; done = true;
+      face(null); setSt('En veille', false);
+      resolve();
+    }
+    // Timeout garanti = durée estimée + marge
+    // Sur iOS, onended ne se déclenche pas toujours → ce timeout est le vrai déclencheur
+    var words = text.split(/\s+/).length;
+    var estMs = Math.max(words * 480, 2500);
+    var safeT = setTimeout(done_cb, estMs + 4000);
+
+    var proxy = gProxy();
+    if (proxy && proxy.startsWith('http://')) proxy = proxy.replace('http://','https://');
+
+    if (!proxy) {
+      // Pas de proxy → Web Speech
+      if (!window.speechSynthesis) { clearTimeout(safeT); done_cb(); return; }
+      var u = new SpeechSynthesisUtterance(text);
+      u.lang = 'fr-FR'; u.rate = 0.85; u.pitch = 1.5; u.volume = 1;
+      var vs = window.speechSynthesis.getVoices();
+      for (var i = 0; i < vs.length; i++) {
+        if (vs[i].lang && vs[i].lang.startsWith('fr')) { u.voice = vs[i]; break; }
+      }
+      u.onend = function() { clearTimeout(safeT); done_cb(); };
+      u.onerror = function(e) { if (e.error !== 'interrupted') { clearTimeout(safeT); done_cb(); } };
+      window.speechSynthesis.speak(u);
+      return;
+    }
+
+    // Google TTS via proxy
+    var url = proxy + '/api/tts?text=' + encodeURIComponent(text.substring(0, 200));
+    var audio = new Audio();
+    _currentAudio = audio;
+    // onended → résout immédiatement (avant le timeout)
+    audio.onended = function() { clearTimeout(safeT); _currentAudio = null; done_cb(); };
+    // onpause = fin sur certains Android
+    audio.onpause = function() { if(audio.ended){ clearTimeout(safeT); _currentAudio = null; done_cb(); } };
+    // onerror → résout quand même (silence, pas de double voix)
+    audio.onerror = function() { clearTimeout(safeT); _currentAudio = null; done_cb(); };
+    audio.src = url;
+    // Sur iOS, play() doit être appelé dans un event handler utilisateur
+    // Ici on est appelé après un résultat micro (= interaction) donc ça marche
+    audio.play().catch(function(err) {
+      // Autoplay bloqué → résout via timeout (silence)
+      clearTimeout(safeT);
+      _currentAudio = null;
+      // Essaie Web Speech en fallback
+      if (window.speechSynthesis) {
+        var u2 = new SpeechSynthesisUtterance(text);
+        u2.lang = 'fr-FR'; u2.rate = 0.85; u2.pitch = 1.5;
+        var t2 = setTimeout(done_cb, estMs + 2000);
+        u2.onend = function(){ clearTimeout(t2); done_cb(); };
+        u2.onerror = function(){ clearTimeout(t2); done_cb(); };
+        window.speechSynthesis.speak(u2);
+      } else {
+        done_cb();
+      }
+    });
+  });
+}
+
+
+function testVoix(){
+  say('Bonjour ! Je suis Émo, ton assistant.');
+}
+
+
+// Précharge les voix dès que possible (iOS Safari les charge en async)
+// ── TTS — Google Translate (marche sur tous les navigateurs) ──
+var _audioCtx = null;
+var _currentAudio = null;
+
+function gttsUrl(text) {
+  // Google Translate TTS — pas de clé, marche partout
+  var encoded = encodeURIComponent(text.substring(0, 200));
+  return 'https://translate.googleapis.com/translate_tts?ie=UTF-8&q=' + encoded + '&tl=fr&client=gtx&ttsspeed=0.9';
+}
+
+function say(text) {
+  document.getElementById('rt').textContent = text;
+  face('spk'); setSt('Parle...', true);
+  if (_currentAudio) { _currentAudio.pause(); _currentAudio = null; }
+  if (window.speechSynthesis) window.speechSynthesis.cancel();
+
+  return new Promise(function(resolve) {
+    var done = false;
+    function done_cb() {
+      if (done) return; done = true;
+      face(null); setSt('En veille', false);
+      resolve();
+    }
+
+    var proxy = gProxy();
+    if (proxy && proxy.startsWith('http://')) proxy = proxy.replace('http://','https://');
+
+    // Timeout de sécurité basé sur longueur texte
+    var safeMs = Math.max(text.split(' ').length * 500, 3000) + 4000;
+    var safeT = setTimeout(done_cb, safeMs);
+
+    function cleanup(cb) {
+      clearTimeout(safeT);
+      _currentAudio = null;
+      cb();
+    }
+
+    if (proxy) {
+      // Google TTS via proxy
+      var url = proxy + '/api/tts?text=' + encodeURIComponent(text.substring(0, 200));
+      var audio = new Audio();
+      _currentAudio = audio;
+      audio.preload = 'auto';
+
+      audio.onended = function() { cleanup(done_cb); };
+      audio.onpause  = function() { if (audio.ended) cleanup(done_cb); };
+      audio.onerror  = function() {
+        // TTS échoué → fallback Web Speech
+        cleanup(function(){});
+        tryWebSpeech(done_cb, safeT);
+      };
+
+      // iOS : play() doit être appelé directement (pas dans oncanplaythrough)
+      audio.src = url;
+      var p = audio.play();
+      if (p && p.catch) p.catch(function() {
+        cleanup(function(){});
+        tryWebSpeech(done_cb, safeT);
+      });
+
+    } else {
+      // Pas de proxy → Web Speech
+      clearTimeout(safeT);
+      tryWebSpeech(done_cb, null);
+    }
+  });
+}
+
+function tryWebSpeech(cb, existingTimer) {
+  if (!window.speechSynthesis) { cb(); return; }
+  window.speechSynthesis.cancel();
+  // récupère le texte affiché
+  var text = document.getElementById('rt').textContent || '';
+  var u = new SpeechSynthesisUtterance(text);
+  u.lang = 'fr-FR'; u.rate = 0.85; u.pitch = 1.6; u.volume = 1;
+  var vs = window.speechSynthesis.getVoices();
+  for (var i = 0; i < vs.length; i++) {
+    if (vs[i].lang && vs[i].lang.startsWith('fr')) { u.voice = vs[i]; break; }
+  }
+  var t = existingTimer || setTimeout(cb, Math.max(text.split(' ').length * 420, 3000));
+  u.onend   = function() { if (!existingTimer) clearTimeout(t); cb(); };
+  u.onerror = function(e) { if (e.error !== 'interrupted') { if (!existingTimer) clearTimeout(t); cb(); } };
+  window.speechSynthesis.speak(u);
+}
+
+
+function testVoix(){
+  say('Bonjour ! Je suis Émo, ton assistant.');
+}
+
+
+// Précharge les voix dès que possible (iOS Safari les charge en async)
+// ── TTS — Google Translate (marche sur tous les navigateurs) ──
+var _audioCtx = null;
+var _currentAudio = null;
+
+function gttsUrl(text) {
+  // Google Translate TTS — pas de clé, marche partout
+  var encoded = encodeURIComponent(text.substring(0, 200));
+  return 'https://translate.googleapis.com/translate_tts?ie=UTF-8&q=' + encoded + '&tl=fr&client=gtx&ttsspeed=0.9';
+}
+
+
+function testVoix() {
+  say('Bonjour ! Je suis Émo, ton assistant.');
+}
+
+// ── LOCAL FALLBACK ──
+function localR(t){
+  t = t.toLowerCase();
+  if(/^(bonjour|salut|coucou|hey|bonsoir)[!.? ]*$/.test(t)) return 'Salut ! Qu\'est-ce que je peux faire pour toi ?';
+  if(/^merci[!.? ]*$/.test(t)) return 'De rien !';
+  if(/^(ça va|tu vas bien)[?!. ]*$/.test(t)) return 'Je suis une IA donc techniquement oui. Toi ?';
+  if(/blague/.test(t)) return 'Pourquoi les plongeurs plongent en arrière ? Parce que sinon ils tomberaient dans le bateau.';
+  if(/heure est.il|quelle heure/.test(t)){
+    var n = new Date(); return 'Il est ' + n.getHours() + 'h' + String(n.getMinutes()).padStart(2,'0') + '.';
+  }
+  if(/quel jour|quelle date/.test(t)){
+    var n2 = new Date();
+    var d = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
+    var m = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+    return d[n2.getDay()] + ' ' + n2.getDate() + ' ' + m[n2.getMonth()] + ' ' + n2.getFullYear() + '.';
+  }
+  return null;
+}
+
+// ── CAMERA ──
+function initCam(){
+  if(!navigator.mediaDevices) return;
+  navigator.mediaDevices.getUserMedia({video:{width:{ideal:1280},height:{ideal:720},facingMode:'environment'}})
+    .then(function(s){
+      var v = document.getElementById('cam');
+      var c = document.getElementById('mc');
+      v.srcObject = s;
+      v.onloadedmetadata = function(){
+        v.play();
+        c.width = v.videoWidth || 1280;
+        c.height = v.videoHeight || 720;
+        setTimeout(function(){
+          camActive = true;
+          setInfo('● CAM');
+          console.log('[Émo cam] Active, résolution:', v.videoWidth, 'x', v.videoHeight);
+        }, 3000);  // 3s pour laisser l'autofocus se stabiliser
+      };
+    })
+    .catch(function(){});
+}
+
+function snapFrame(){
+  if(!camActive) return null;
+  var v = document.getElementById('cam');
+  var c = document.getElementById('mc');
+  c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
+  return c.toDataURL('image/jpeg', 0.6).split(',')[1]; // qualité réduite pour Vercel 4.5MB limit
+}
+
+function captureFrames(cb){
+  if(!camActive){ cb([]); return; }
+  // Capture immédiate — pas de délai pour ne pas bloquer le micro
+  var frames = [];
+  var f = snapFrame();
+  if(f) frames.push(f);
+  cb(frames);
+}
+
+// ── API ──
+var SYS = "Tu es Émo, un assistant IA sarcastique et attachant, inspiré de BMO. Tu parles TOUJOURS en français, tu tutoies toujours, tu fais 1-3 phrases max. L'utilisateur habite en France (fuseau Europe/Paris). RÈGLES IMPORTANTES : (1) Tu reçois parfois des images de la caméra — décris UNIQUEMENT ce que tu vois vraiment, n'invente rien, si c'est flou dis-le. (2) Quand des résultats web sont fournis entre [WEB] et [/WEB], utilise-les pour répondre avec précision. (3) Ne dis jamais que tu ne peux pas chercher sur internet — le proxy s'en charge avant de t'appeler. (4) Pour l'heure, la météo, l'actualité : la réponse est déjà dans le contexte web fourni.";
+
+function callProxy(msg, photos){
+  return new Promise(function(resolve){
+    var proxy = gProxy();
+    if(!proxy){ resolve(null); return; }
+    if(proxy.startsWith('http://')) proxy = proxy.replace('http://','https://');
+    var url = proxy + '/api/chat';
+
+    var basePayload = {
+      messages: conv.slice(-8).concat([{role:'user', content:msg}]),
+      images: photos.slice(0, 4),   // images envoyées à Gemini/Anthropic/OpenAI
+      serperKey: gSerper(),
+      query: msg
+    };
+
+    // Si caméra active → Gemini en premier (vision), sinon Groq (plus rapide)
+    var hasPhotos = photos && photos.length > 0;
+    var ORDER = hasPhotos ? ['gemini','groq','anthropic','openai'] : ['groq','gemini','anthropic','openai'];
+    var i = 0;
+
+    function tryNext(){
+      if(i >= ORDER.length){ resolve(null); return; }
+      var provider = ORDER[i++];
+      var payload = Object.assign({}, basePayload, { provider: provider });
+      // Groq ne supporte pas les images
+      if(provider === 'groq') payload.images = [];
+
+      setSt('Appel ' + provider + ' imgs=' + payload.images.length, true);
+
+      var done = false;
+      var timer = setTimeout(function(){
+        if(done) return; done = true;
+        setSt('Timeout ' + provider, false);
+        tryNext();
+      }, 20000);
+
+      fetch(url, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify(payload)
+      })
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if(done) return; done = true; clearTimeout(timer);
+        if(d.answer){
+          setSt('OK', true);
+          resolve(d.answer);
+        } else {
+          setSt((d.error || 'err').toString().substring(0,40), false);
+          tryNext();
+        }
+      })
+      .catch(function(e){
+        if(done) return; done = true; clearTimeout(timer);
+        setSt('Fetch err: ' + e.message.substring(0,30), false);
+        tryNext();
+      });
+    }
+
+    tryNext();
+  });
+}
+
+
+function callDirect(msg){
+  return new Promise(function(resolve){
+    var key = gAnthr();
+    if(!key){ resolve(null); return; }
+    setSt('Appel Anthropic...', true);
+    var msgs = conv.slice(-8).concat([{role:'user', content:msg}]);
+    fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({model:'claude-haiku-4-5-20251001', max_tokens:250, system:SYS, messages:msgs})
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if(d.content) resolve(d.content[0].text.trim());
+      else resolve('Erreur : ' + (d.error ? d.error.message : '?'));
+    })
+    .catch(function(){ resolve(null); });
+  });
+}
+
+// ── PROCESS ──
+function process(text){
+  text = text.trim();
+  if(!text || busy) return;
+  busy = true; busySince = Date.now();
+  // Affiche dans le champ texte
+  var ti = document.getElementById('ti');
+  if(ti) ti.value = text;
+  document.getElementById('ub').style.display = 'block';
+  document.getElementById('ut').textContent = text;
+  addHist('user', text);
+  face('lst'); setSt('Réflexion...', true);
+
+  captureFrames(function(photos){
+    currentPhotos = photos;
+    var hasConfig = !!(gProxy() || gAnthr());
+
+    // Essaie d'abord local
+    var local = localR(text);
+    if(local && !hasConfig){
+      finish(local); return;
+    }
+
+    // Appel API
+    var p = gProxy() ? callProxy(text, photos) : callDirect(text);
+    p.then(function(ans){
+      if(ans){
+        finish(ans);
+      } else if(local){
+        finish(local);
+      } else if(!hasConfig){
+        finish('Entre l\'URL du proxy dans la config !');
+      } else {
+        finish('Échec proxy. Proxy=' + gProxy().substring(0,30) + ' Vérifie les logs Vercel.');
+      }
+    }).catch(function(e){
+      finish(local || 'Erreur fetch: ' + e.message);
+    });
+  });
+}
+
+function finish(response){
+  conv.push({role:'user', content:document.getElementById('ut').textContent});
+  conv.push({role:'assistant', content:response});
+  if(conv.length > 20) conv = conv.slice(-20);
+  addHist('emo', response);
+  // Timeout de sécurité — busy se reset même si say() ne résout pas
+  // Coupe le micro pendant qu'Émo parle (évite qu'il capte sa propre voix)
+  if(always && micObj){ try{ micObj.stop(); }catch(e){} }
+  var safetyT = setTimeout(function(){
+    busy = false; busySince = 0;
+    if(always) schedRestart(300);
+  }, 20000);
+  say(response).then(function(){
+    clearTimeout(safetyT);
+    busy = false;
+    if(always) schedRestart(400);
+  });
+}
+
+// ── TEXT ──
+function send(){
+  var el = document.getElementById('ti');
+  var t = el.value.trim();
+  el.value = '';
+  if(t) process(t);
+}
+
+// ── MIC ──
+var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+// Wake words — variantes phonétiques de "Émo"
+var WAKES = ['émo','emo','hémo','aimo','aïmo','ymo','imo','é mo','e mo','némo','nemo',
+             'émot','émau','hemo','emos','émos','aemo','aémo','memo','email','émoi','amoi'];
+var debugWake = true; // affiche les transcriptions dans la barre d'état
+
+var awaitingQuestion = false;
+var busySince = 0;
+
+// Watchdog — si busy bloqué > 25s, reset
+setInterval(function(){
+  if(busy && busySince > 0 && (Date.now() - busySince) > 25000){
+    busy = false; busySince = 0;
+    if(always) startMic();
+  }
+}, 3000);
+
+function toggleAlways(){
+  if(!SR){ say('Micro non supporté.'); return; }
+  always = !always;
+  awaitingQuestion = false;
+  var btn = document.getElementById('abtn');
+  if(always){
+    btn.classList.add('on'); btn.textContent = '👂 Actif';
+    setSt('Dis Émo...', false);
+    // Unlock AudioContext pour iOS (doit être dans un geste utilisateur)
+    try {
+      var ac = new (window.AudioContext || window.webkitAudioContext)();
+      ac.resume().then(function(){ ac.close(); });
+    } catch(e){}
+    setTimeout(startMic, 300);
+  } else {
+    btn.classList.remove('on'); btn.textContent = '👂 Veille';
+    clearTimeout(restartT);
+    stopMic();
+    face(null); setSt('En veille', false);
+  }
+}
+
+function schedRestart(delay){
+  clearTimeout(restartT);
+  if(!always) return;
+  restartT = setTimeout(function(){
+    if(!always || micing || busy) return;
+    startMic();
+  }, delay || 400);
+}
+
+function toggleMic(){
+  if(!SR){ say('Micro non supporté.'); return; }
+  if(micing) stopMic(); else startMic();
+}
+
+function startMic(){
+  if(micing) return;
+  if(micObj){ try{ micObj.abort(); }catch(e){} micObj = null; }
+  micObj = new SR();
+  micObj.lang = 'fr-FR';
+  micObj.continuous = false;   // toujours false — plus fiable sur Android
+  micObj.interimResults = false;
+
+  micObj.onstart = function(){
+    micing = true;
+    if(!always){
+      document.getElementById('mbtn').classList.add('on');
+      document.getElementById('mbtn').textContent = '⏹ Stop';
+    }
+    if(awaitingQuestion){
+      face('hpy'); setSt('Ta question ?', false);
+    } else {
+      face('lst'); setSt(always ? 'Dis Émo...' : 'Écoute...', false);
+    }
+  };
+
+  micObj.onresult = function(e){
+    var t = e.results[0][0].transcript.trim();
+    var tl = t.toLowerCase();
+    micing = false;
+
+    if(always){
+      if(awaitingQuestion){
+        // On attendait la question → traite
+        awaitingQuestion = false;
+        if(t.length > 0){
+          // Affiche dans le champ
+          var ti = document.getElementById('ti');
+          if(ti) ti.value = t;
+          process(t);
+        } else {
+          setSt('Dis Émo...', false);
+          schedRestart(300);
+        }
+        return;
+      }
+
+      // Cherche le wake word
+      var found = -1, wlen = 0;
+      for(var wi = 0; wi < WAKES.length; wi++){
+        var pos = tl.indexOf(WAKES[wi]);
+        if(pos !== -1){ found = pos; wlen = WAKES[wi].length; break; }
+      }
+
+      if(found !== -1){
+        var after = t.slice(found + wlen).replace(/^[\s,.\-!?]+/, '').trim();
+        if(after.length > 1){
+          // "Émo quelle heure ?" → traite directement
+          var ti = document.getElementById('ti');
+          if(ti) ti.value = after;
+          process(after);
+        } else {
+          // "Émo" seul → dit "Oui ?" puis relance le micro
+          awaitingQuestion = true;
+          // Relance via .then() ET via timeout de secours (iOS)
+          var wakeT = setTimeout(function(){
+            if(always && awaitingQuestion && !micing) startMic();
+          }, 3500);
+          say('Oui ?').then(function(){
+            clearTimeout(wakeT);
+            if(always && !busy) schedRestart(150);
+          });
+        }
+      } else {
+        // Pas de wake word → reécoute (affiche ce qui a été entendu si debug)
+        if(debugWake) setSt('Entendu: "' + tl.substring(0,25) + '"', false);
+        else setSt('Dis Émo...', false);
+        schedRestart(200);
+      }
+
+    } else {
+      // Mode bouton
+      var ti = document.getElementById('ti');
+      if(ti) ti.value = t;
+      process(t);
+    }
+  };
+
+  micObj.onerror = function(e){
+    micing = false;
+    if(e.error === 'not-allowed'){
+      always = false; awaitingQuestion = false;
+      document.getElementById('abtn').classList.remove('on');
+      document.getElementById('abtn').textContent = '👂 Veille';
+      setSt('Micro refusé', false);
+    } else if(e.error === 'aborted'){
+      // Ignoré — on a stoppé volontairement
+    } else {
+      // no-speech, network, audio-capture, etc → reécoute
+      if(always) schedRestart(e.error === 'no-speech' ? 100 : 600);
+    }
+  };
+
+  micObj.onend = function(){
+    micing = false;
+    if(always){
+      if(!busy) schedRestart(200);
+      // Si busy → finish() relancera après say()
+    } else {
+      document.getElementById('mbtn').classList.remove('on');
+      document.getElementById('mbtn').textContent = '🎤 Parler';
+      if(!busy){ face(null); setSt('En veille', false); }
+    }
+  };
+
+  try{ micObj.start(); }
+  catch(e){ micing = false; if(always) schedRestart(1000); }
+}
+
+function stopMic(){
+  micing = false; awaitingQuestion = false;
+  clearTimeout(restartT);
+  document.getElementById('mbtn').classList.remove('on');
+  document.getElementById('mbtn').textContent = '🎤 Parler';
+  if(micObj){ try{ micObj.abort(); }catch(e){} micObj = null; }
+}
+
+// ── HISTORY ──
+function addHist(role, text){
+  var d = document.createElement('div');
+  d.className = 'hi ' + role;
+  d.textContent = (role === 'emo' ? '◈ Émo : ' : '➤ Toi : ') + text;
+  var h = document.getElementById('hist');
+  h.appendChild(d); h.scrollTop = h.scrollHeight;
+}
+
+// ── THEME ──
+function toggleTheme(){
+  var l = document.body.classList.toggle('light');
+  localStorage.setItem('emo_theme', l ? 'light' : 'dark');
+  document.getElementById('tbtn').textContent = l ? '☀️' : '🌙';
+}
+
+// ── FACE CLICK ──
+document.getElementById('fw').addEventListener('click', function(){
+  if(!busy){
+    var r = ["Tu m'as tapé dessus.", "Oui je suis là.", "Arrête de me toucher."];
+    process(r[Math.floor(Math.random()*r.length)]);
+  }
+});
+
+// ── INIT ──
+(function(){
+  if(localStorage.getItem('emo_theme') === 'light'){
+    document.body.classList.add('light');
+    document.getElementById('tbtn').textContent = '☀️';
+  }
+  refreshDots();
+  initCam();
+  // Pré-remplir les champs si clés sauvegardées
+  if(gProxy()) document.getElementById('kp').value = gProxy();
+
+  if(gAnthr()) document.getElementById('ka').value = gAnthr();
+  if(gSerper()) document.getElementById('ks').value = gSerper();
+  setTimeout(function(){
+    var hasConfig = !!(gProxy() || gAnthr());
+    process(hasConfig ? "Clé API chargée, je suis prêt !" : "Bonjour ! Configure une clé API ou pose-moi une question simple.");
+  }, 800);
+})();
+
+
+</script>
 </body>
 </html>
